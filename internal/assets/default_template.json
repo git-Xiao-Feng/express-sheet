@@ -1,0 +1,114 @@
+{
+  "page": { "width_mm": 100, "height_mm": 150 },
+  "font": { "family": "simhei" },
+  "blocks": [
+    {
+      "id": "b_title",
+      "type": "text",
+      "x": 3, "y": 2, "w": 63, "h": 11,
+      "font_size": 28, "bold": true, "align": "left",
+      "value": "入仓单",
+      "color": "#000000"
+    },
+    {
+      "id": "b_fraction",
+      "type": "text",
+      "x": 68, "y": 2.5, "w": 29, "h": 10,
+      "font_size": 22, "bold": true, "align": "center",
+      "value": "1/2",
+      "color": "#000000",
+      "border": true
+    },
+    {
+      "id": "b_warning_zh",
+      "type": "text",
+      "x": 3, "y": 14, "w": 63, "h": 3.5,
+      "font_size": 7, "bold": true, "align": "left",
+      "value": "请勿覆盖 请勿覆盖",
+      "color": "#000000"
+    },
+    {
+      "id": "b_warning_en",
+      "type": "text",
+      "x": 3, "y": 17.5, "w": 63, "h": 3.5,
+      "font_size": 7, "bold": true, "align": "left",
+      "value": "DO NOT OVERWRITE",
+      "color": "#000000"
+    },
+    {
+      "id": "b_customer_code",
+      "type": "text",
+      "x": 3, "y": 22, "w": 94, "h": 8,
+      "font_size": 24, "bold": true, "align": "center",
+      "value": "ZYWKJ",
+      "color": "#000000"
+    },
+    {
+      "id": "b_channel",
+      "type": "text",
+      "x": 3, "y": 32, "w": 47, "h": 7,
+      "font_size": 16, "bold": true, "align": "center",
+      "value": "SC04",
+      "color": "#000000"
+    },
+    {
+      "id": "b_order_no",
+      "type": "text",
+      "x": 50, "y": 32, "w": 47, "h": 7,
+      "font_size": 16, "bold": true, "align": "center",
+      "value": "2178",
+      "color": "#000000"
+    },
+    {
+      "id": "b_barcode1",
+      "type": "barcode",
+      "x": 5, "y": 42, "w": 90, "h": 15,
+      "barcode_type": "code128",
+      "value": "FBA15G0J39SC"
+    },
+    {
+      "id": "b_single_no",
+      "type": "text",
+      "x": 5, "y": 58, "w": 90, "h": 5,
+      "font_size": 14, "bold": true, "align": "center",
+      "value": "FBA15G0J39SC-1",
+      "color": "#000000"
+    },
+    {
+      "id": "b_barcode2",
+      "type": "barcode",
+      "x": 5, "y": 65, "w": 75, "h": 15,
+      "barcode_type": "code128",
+      "value": "FBA15G0J39SC"
+    },
+    {
+      "id": "b_qrcode",
+      "type": "qrcode",
+      "x": 37, "y": 97, "w": 28, "h": 28,
+      "value": "FBA15G0J39SC-1"
+    },
+    {
+      "id": "b_side_barcode",
+      "type": "barcode",
+      "x": 85, "y": 42, "w": 12, "h": 80,
+      "barcode_type": "code128",
+      "value": "FBA15G0J39SC-1"
+    },
+    {
+      "id": "b_country",
+      "type": "text",
+      "x": 3, "y": 140, "w": 60, "h": 5,
+      "font_size": 10, "bold": true, "align": "left",
+      "value": "MADE IN CHINA",
+      "color": "#000000"
+    },
+    {
+      "id": "b_date",
+      "type": "text",
+      "x": 50, "y": 140, "w": 47, "h": 5,
+      "font_size": 10, "bold": true, "align": "right",
+      "value": "2026-06-06",
+      "color": "#000000"
+    }
+  ]
+}

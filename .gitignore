@@ -1,0 +1,12 @@
+.trae/
+analysis.md
+*.log
+*.pdf
+*.png
+*.err
+*.out
+test*
+cmd/
+e2e*
+prd.json
+progress.txt

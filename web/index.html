@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>面单生成器</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='20'>📦</text></svg>">
+</head>
+<body>
+  <!-- ===================== 顶部条 ===================== -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <span class="brand-title">
+          面单生成器
+          <span class="brand-dirty" id="brandDirty" hidden title="有未导出的修改">●</span>
+        </span>
+        <span class="brand-sub">Waybill Studio · 纯本地</span>
+      </div>
+    </div>
+
+    <div class="page-size" role="group" aria-label="纸张尺寸">
+      <span class="ps-label">纸张</span>
+      <div class="ps-preset">
+        <button id="btnPagePreset" class="ps-preset-btn" type="button" title="常用尺寸预设" aria-haspopup="listbox" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="1"/><path d="M9 6V4h6v2"/></svg>
+          <span id="psPresetLabel">自定义</span>
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="caret"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <ul id="psPresetMenu" class="ps-preset-menu" role="listbox" hidden></ul>
+      </div>
+      <div class="num-input">
+        <input id="pageW" type="number" min="1" max="500" step="1" value="100" aria-label="宽度(mm)">
+        <span class="num-unit">mm</span>
+      </div>
+      <span class="ps-x">×</span>
+      <div class="num-input">
+        <input id="pageH" type="number" min="1" max="500" step="1" value="150" aria-label="高度(mm)">
+        <span class="num-unit">mm</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btnImport" class="btn btn-ghost" type="button" title="从 JSON 文件导入模板 (Ctrl+I)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>导入</span>
+      </button>
+      <button id="btnExportTpl" class="btn btn-ghost" type="button" title="下载当前模板为 JSON (Ctrl+E)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>模板</span>
+      </button>
+      <button id="btnReset" class="btn btn-ghost" type="button" title="恢复默认模板">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        <span>重置</span>
+      </button>
+      <button id="btnHelp" class="icon-btn" type="button" title="键盘快捷键 (?)" aria-label="帮助">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </button>
+      <button id="btnExport" class="btn btn-primary" type="button" title="生成并下载 PDF (Ctrl+S)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>导出 PDF</span>
+      </button>
+      <input id="fileImport" type="file" accept="application/json,.json" hidden>
+    </div>
+  </header>
+
+  <!-- ===================== 主体 ===================== -->
+  <main class="main">
+    <!-- 左栏:区块 -->
+    <section class="panel" id="panel-blocks">
+      <header class="panel-header">
+        <div class="panel-title">
+          <h2>区块</h2>
+          <span class="panel-count" id="blockCount">0</span>
+        </div>
+        <button id="btnAddBlock" class="btn btn-soft" type="button">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>添加区块</span>
+        </button>
+      </header>
+      <div id="blocksList" class="panel-body block-list"></div>
+    </section>
+
+    <!-- 右栏:预览 -->
+    <section class="panel" id="panel-preview">
+      <header class="panel-header">
+        <div class="panel-title">
+          <h2>预览</h2>
+          <span id="previewMeta" class="panel-meta">100 × 150 mm</span>
+        </div>
+        <div class="preview-toolbar">
+          <button id="btnZoomOut" class="icon-btn" title="缩小 (Ctrl+-)" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <span id="zoomLabel" class="zoom-label">100%</span>
+          <button id="btnZoomIn" class="icon-btn" title="放大 (Ctrl++)" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <button id="btnZoomFit" class="icon-btn" title="适应窗口 (Ctrl+0)" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
+          <button id="btnZoom100" class="icon-btn zoom-100" title="100% 实际尺寸" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <span class="toolbar-divider"></span>
+          <button id="btnToggleGrid" class="icon-btn toggle" title="显示/隐藏网格 (G)" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </button>
+          <button id="btnToggleSnap" class="icon-btn toggle" title="对齐到网格 (S)" type="button" aria-pressed="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6"/><path d="M3 13v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+          </button>
+          <div class="snap-step" title="对齐步长 (mm)">
+            <select id="selSnapStep" aria-label="对齐步长">
+              <option value="1">1 mm</option>
+              <option value="5">5 mm</option>
+              <option value="10">10 mm</option>
+            </select>
+          </div>
+        </div>
+      </header>
+      <div class="panel-body preview-body">
+        <div class="preview-frame" id="previewFrame">
+          <div class="ruler ruler-top" id="rulerTop" aria-hidden="true"></div>
+          <div class="ruler ruler-left" id="rulerLeft" aria-hidden="true"></div>
+          <div class="preview-stage" id="previewStage">
+            <canvas id="canvas" width="378" height="567"></canvas>
+            <div class="selection-overlay" id="selectionOverlay" hidden>
+              <div class="sel-handle" data-handle="nw"></div>
+              <div class="sel-handle" data-handle="n"></div>
+              <div class="sel-handle" data-handle="ne"></div>
+              <div class="sel-handle" data-handle="e"></div>
+              <div class="sel-handle" data-handle="se"></div>
+              <div class="sel-handle" data-handle="s"></div>
+              <div class="sel-handle" data-handle="sw"></div>
+              <div class="sel-handle" data-handle="w"></div>
+              <div class="sel-label" id="selLabel"></div>
+            </div>
+            <div class="block-hover" id="blockHover" hidden>
+              <div class="bh-id" id="bhId">—</div>
+              <div class="bh-row">
+                <span>类型</span><b id="bhType">—</b>
+              </div>
+              <div class="bh-row">
+                <span>位置</span><b id="bhPos">—</b>
+              </div>
+              <div class="bh-row">
+                <span>尺寸</span><b id="bhSize">—</b>
+              </div>
+              <div class="bh-row">
+                <span>内容</span><b id="bhField">—</b>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="coord-readout" id="coordReadout" aria-hidden="true">x: 0 mm · y: 0 mm</div>
+      </div>
+    </section>
+
+    <!-- 第4栏:检视器(选中块时显示) -->
+    <aside class="panel inspector" id="panel-inspector" hidden>
+      <header class="panel-header">
+        <div class="panel-title">
+          <h2>检视器</h2>
+          <span class="panel-count" id="inspBlockType">—</span>
+        </div>
+        <div class="inspector-actions">
+          <button id="btnDupBlock" class="icon-btn" title="复制块 (Ctrl+D)" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+          <button id="btnDelBlock" class="icon-btn danger" title="删除块 (Del)" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+          <button id="btnCloseInsp" class="icon-btn" title="关闭检视器 (Esc)" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </header>
+      <div class="panel-body" id="inspectorBody"></div>
+    </aside>
+  </main>
+
+  <!-- ===================== 底部状态条 ===================== -->
+  <footer class="statusbar">
+    <div class="status-left">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">已就绪</span>
+    </div>
+    <div class="status-right">
+      <span class="status-item" id="statusBlocks">区块 0</span>
+      <span class="status-divider"></span>
+      <span class="status-item" id="statusPreview">最近渲染 —</span>
+      <span class="status-divider"></span>
+      <span class="status-item" id="statusSavedAt" title="最近自动保存时间">保存 —</span>
+      <span class="status-divider"></span>
+      <span class="status-item" id="statusPersist" title="自动保存到本地存储">本地草稿 · —</span>
+    </div>
+  </footer>
+
+  <!-- ===================== 模态:通用确认 ===================== -->
+  <div class="modal" id="modal-confirm" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="modal-confirm-title">
+      <header class="modal-header">
+        <h3 id="modal-confirm-title">确认</h3>
+      </header>
+      <div class="modal-body">
+        <p id="modal-confirm-msg" class="confirm-msg">是否继续?</p>
+      </div>
+      <footer class="modal-footer">
+        <button id="btnConfirmCancel" class="btn btn-ghost" type="button">取消</button>
+        <button id="btnConfirmOk" class="btn btn-primary" type="button">确认</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ===================== 提示条 ===================== -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <!-- ===================== 首屏加载骨架 ===================== -->
+  <div id="splash" class="splash" aria-hidden="true">
+    <div class="splash-card">
+      <div class="splash-icon">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <div class="splash-title">面单生成器</div>
+      <div class="splash-sub">正在加载默认模板…</div>
+      <div class="splash-bar"><div class="splash-bar-inner"></div></div>
+    </div>
+  </div>
+
+  <!-- ===================== 模态:快捷键帮助 ===================== -->
+  <div class="modal" id="modal-help" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-help-title">
+      <header class="modal-header">
+        <h3 id="modal-help-title">键盘快捷键</h3>
+        <button class="icon-btn" data-close type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </header>
+      <div class="modal-body help-body">
+        <div class="help-section">
+          <div class="help-section-title">画布与导出</div>
+          <div class="help-row"><kbd>Ctrl</kbd>+<kbd>S</kbd><span>导出 PDF</span></div>
+          <div class="help-row"><kbd>Ctrl</kbd>+<kbd>+</kbd><span>放大画布</span></div>
+          <div class="help-row"><kbd>Ctrl</kbd>+<kbd>-</kbd><span>缩小画布</span></div>
+          <div class="help-row"><kbd>Ctrl</kbd>+<kbd>0</kbd><span>适应窗口</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">选中块</div>
+          <div class="help-row"><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd><span>1 mm 微调</span></div>
+          <div class="help-row"><kbd>Shift</kbd>+<kbd>↑↓←→</kbd><span>5 mm 大幅微调</span></div>
+          <div class="help-row"><kbd>Ctrl</kbd>+<kbd>D</kbd><span>复制当前块</span></div>
+          <div class="help-row"><kbd>Del</kbd><span>删除当前块</span></div>
+          <div class="help-row"><kbd>Esc</kbd><span>关闭检视器 / 弹窗</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">其他</div>
+          <div class="help-row"><kbd>?</kbd><span>显示本帮助</span></div>
+          <div class="help-row"><kbd>G</kbd><span>切换网格</span></div>
+          <div class="help-row"><kbd>S</kbd><span>切换对齐</span></div>
+          <div class="help-row"><kbd>1</kbd>/<kbd>5</kbd>/<kbd>0</kbd><span>切换对齐步长(1/5/10mm, 0=10)</span></div>
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <span class="help-tip">按 <kbd>Esc</kbd> 关闭</span>
+        <button class="btn btn-primary" data-close type="button">明白了</button>
+      </footer>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
