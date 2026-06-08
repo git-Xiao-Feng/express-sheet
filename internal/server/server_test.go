@@ -1,6 +1,10 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -186,5 +190,166 @@ func TestStripLegacyJSONFields(t *testing.T) {
 	}
 	if block["id"] != "b1" || block["type"] != "text_h" {
 		t.Errorf("unexpected block contents: %v", block)
+	}
+}
+
+// --- US-004 默认模板适配 acceptance ---
+
+// fetchDefaultTemplate 调用 GET /api/template/default 解析为 template.Template。
+// acceptance #4: 「GET /api/template/default 返回 200」
+func fetchDefaultTemplate(t *testing.T, h *Handler) template.Template {
+	t.Helper()
+	req := httptest.NewRequest("GET", "/api/template/default", nil)
+	rr := httptest.NewRecorder()
+	h.defaultTemplate(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET /api/template/default returned %d, want 200; body=%s", rr.Code, rr.Body.String())
+	}
+	var tpl template.Template
+	if err := json.Unmarshal(rr.Body.Bytes(), &tpl); err != nil {
+		t.Fatalf("decode default template: %v", err)
+	}
+	return tpl
+}
+
+// findBlockByID 在 tpl.Blocks 中按 id 查找并返回 *Block;找不到时 t.Fatal。
+func findBlockByID(t *testing.T, tpl template.Template, id string) *template.Block {
+	t.Helper()
+	for i := range tpl.Blocks {
+		if tpl.Blocks[i].ID == id {
+			return &tpl.Blocks[i]
+		}
+	}
+	t.Fatalf("block %q not found in template", id)
+	return nil
+}
+
+// TestDefaultTemplateServesFractionBox 覆盖 acceptance #4:
+//   - 「GET /api/template/default 返回 200,b_fraction_box 存在」
+//   - 「b_fraction_box 元素,type=rect,位置(68, 2.5, 29, 10),color=#000000」
+func TestDefaultTemplateServesFractionBox(t *testing.T) {
+	h := New(nil, nil) // 默认模板与字体无关,FontBytes 留空
+	tpl := fetchDefaultTemplate(t, h)
+
+	box := findBlockByID(t, tpl, "b_fraction_box")
+	if box.Type != template.BlockRect {
+		t.Errorf("b_fraction_box type = %q, want %q", box.Type, template.BlockRect)
+	}
+	if box.X != 68 || box.Y != 2.5 || box.W != 29 || box.H != 10 {
+		t.Errorf("b_fraction_box position = (%v, %v, %v, %v), want (68, 2.5, 29, 10)",
+			box.X, box.Y, box.W, box.H)
+	}
+	if box.Color != "#000000" {
+		t.Errorf("b_fraction_box color = %q, want %q", box.Color, "#000000")
+	}
+}
+
+// TestDefaultTemplateFractionHasNoBorder 覆盖 acceptance #1:
+//   - 「b_fraction 元素不再含 border:true 字段」
+//
+// 通过 json.Unmarshal 到 map[string]any 验证字段确实消失(而不只是 Block 字段
+// 缺省时被 omitempty 隐藏),避免后续给 Block 加 `border bool` 字段时悄悄通过。
+func TestDefaultTemplateFractionHasNoBorder(t *testing.T) {
+	h := New(nil, nil)
+	req := httptest.NewRequest("GET", "/api/template/default", nil)
+	rr := httptest.NewRecorder()
+	h.defaultTemplate(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET /api/template/default returned %d", rr.Code)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode raw default template: %v", err)
+	}
+	tpl, ok := raw["template"].(map[string]any)
+	if !ok {
+		// 处理器直接返回 Template,根就是 template 内容
+		tpl = raw
+	}
+	blocks, ok := tpl["blocks"].([]any)
+	if !ok {
+		t.Fatalf("blocks field missing or not array: %T", tpl["blocks"])
+	}
+	var fraction map[string]any
+	for _, b := range blocks {
+		bm := b.(map[string]any)
+		if bm["id"] == "b_fraction" {
+			fraction = bm
+			break
+		}
+	}
+	if fraction == nil {
+		t.Fatal("b_fraction block not found")
+	}
+	if _, hasBorder := fraction["border"]; hasBorder {
+		t.Errorf("b_fraction still has border field: %v", fraction["border"])
+	}
+}
+
+// TestDefaultTemplateBoxBeforeFraction 覆盖 acceptance #3:
+//   - 「b_fraction_box 排序在 b_fraction 之前(矩形先画,文字后画)」
+func TestDefaultTemplateBoxBeforeFraction(t *testing.T) {
+	h := New(nil, nil)
+	tpl := fetchDefaultTemplate(t, h)
+	boxIdx, fracIdx := -1, -1
+	for i, b := range tpl.Blocks {
+		switch b.ID {
+		case "b_fraction_box":
+			boxIdx = i
+		case "b_fraction":
+			fracIdx = i
+		}
+	}
+	if boxIdx < 0 {
+		t.Fatal("b_fraction_box not found in blocks")
+	}
+	if fracIdx < 0 {
+		t.Fatal("b_fraction not found in blocks")
+	}
+	if boxIdx >= fracIdx {
+		t.Errorf("b_fraction_box index = %d, b_fraction index = %d; box must come before fraction", boxIdx, fracIdx)
+	}
+}
+
+// TestDefaultTemplateExportsPDF 覆盖 acceptance #5:
+//   - 「导出 PDF 默认模板,分数区域视觉等效(分数 1/2 显示在矩形框内)」
+//
+// 端到端跑 /api/pdf: 文本走 round-trip(JSON encode default template -> POST /api/pdf),
+// 期望返回 200 + application/pdf + 非空 PDF 字节。
+// 「视觉等效」通过「text_h 1/2 元素与 rect b_fraction_box 共存且 b_fraction_box 先画」保证
+// (后者由 TestDefaultTemplateBoxBeforeFraction 锁住),PDF 字节非空证明绘制管线没崩。
+func TestDefaultTemplateExportsPDF(t *testing.T) {
+	h := New(nil, nil) // FontBytes=nil, generator 会 fallback 到 Helvetica
+
+	tpl := fetchDefaultTemplate(t, h)
+	body, err := json.Marshal(template.RenderRequest{Template: tpl})
+	if err != nil {
+		t.Fatalf("marshal render request: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/api/pdf", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.generatePDF(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("POST /api/pdf returned %d, want 200; body=%s", rr.Code, rr.Body.String())
+	}
+	ct := rr.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "application/pdf") {
+		t.Errorf("Content-Type = %q, want application/pdf prefix", ct)
+	}
+	pdfBytes, err := io.ReadAll(rr.Body)
+	if err != nil {
+		t.Fatalf("read pdf body: %v", err)
+	}
+	if len(pdfBytes) < 100 {
+		t.Errorf("PDF body suspiciously small: %d bytes", len(pdfBytes))
+	}
+	if !bytes.HasPrefix(pdfBytes, []byte("%PDF-")) {
+		head := pdfBytes
+		if len(head) > 8 {
+			head = head[:8]
+		}
+		t.Errorf("PDF body does not start with %%PDF- magic: %q", string(head))
 	}
 }

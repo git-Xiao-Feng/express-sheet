@@ -72,7 +72,7 @@
       "files": [
         "internal/assets/default_template.json"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-005",
