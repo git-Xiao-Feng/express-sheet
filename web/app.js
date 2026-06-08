@@ -8,6 +8,150 @@
 const MM_TO_PX = 3.7795275591;          // 1mm @ 96dpi
 const STORAGE_KEY = 'express-sheet-draft-v1';
 
+// 元素类型元数据 —— 8 种类型的 label / badge / icon(24x24 SVG)/ defaultSize / defaults
+// 注意:
+//   - type 值与后端 internal/template/types.go 的 8 个 BlockType 常量一一对应
+//   - badge 复用现有 type-* CSS 类(US-014 才新增 text_v / line_h / line_v / barcode_v 的独立颜色变量)
+//   - defaults 包含 addElement(type) 创建新元素时需要的全部默认属性(不含 id,id 由 addElement 生成)
+const ELEMENT_TYPE_META = {
+  text_h: {
+    label: '横排文字',
+    badge: 'type-text',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<line x1="3" y1="6"  x2="21" y2="6"/>'
+        + '<line x1="3" y1="12" x2="21" y2="12"/>'
+        + '<line x1="3" y1="18" x2="14" y2="18"/>'
+        + '</svg>',
+    defaultSize: { w: 40, h: 8 },
+    defaults: {
+      type: 'text_h',
+      x: 5, y: 5, w: 40, h: 8,
+      font_size: 12, bold: false, align: 'left',
+      color: '#000000',
+      value: '',
+    },
+  },
+  text_v: {
+    label: '竖排文字',
+    badge: 'type-text',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<line x1="6"  y1="3" x2="6"  y2="21"/>'
+        + '<line x1="12" y1="3" x2="12" y2="21"/>'
+        + '<line x1="18" y1="3" x2="18" y2="11"/>'
+        + '</svg>',
+    defaultSize: { w: 8, h: 40 },
+    defaults: {
+      type: 'text_v',
+      x: 5, y: 5, w: 8, h: 40,
+      font_size: 12, bold: false, align: 'center',
+      color: '#000000',
+      value: '',
+    },
+  },
+  line_h: {
+    label: '水平线',
+    badge: 'type-line',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<line x1="3" y1="12" x2="21" y2="12"/>'
+        + '</svg>',
+    defaultSize: { w: 40, h: 0.5 },
+    defaults: {
+      type: 'line_h',
+      x: 5, y: 5, w: 40, h: 0.5,
+      color: '#000000',
+      line_width: 0.2,
+    },
+  },
+  line_v: {
+    label: '垂直线',
+    badge: 'type-line',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<line x1="12" y1="3" x2="12" y2="21"/>'
+        + '</svg>',
+    defaultSize: { w: 0.5, h: 40 },
+    defaults: {
+      type: 'line_v',
+      x: 5, y: 5, w: 0.5, h: 40,
+      color: '#000000',
+      line_width: 0.2,
+    },
+  },
+  rect: {
+    label: '矩形',
+    badge: 'type-rect',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<rect x="3" y="5" width="18" height="14" rx="1"/>'
+        + '</svg>',
+    defaultSize: { w: 20, h: 10 },
+    defaults: {
+      type: 'rect',
+      x: 5, y: 5, w: 20, h: 10,
+      color: '#000000',
+      fill: true,
+    },
+  },
+  barcode_h: {
+    label: '横向条形码',
+    badge: 'type-barcode',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">'
+        + '<rect x="3"  y="4" width="2" height="16"/>'
+        + '<rect x="6"  y="4" width="1" height="16"/>'
+        + '<rect x="8"  y="4" width="3" height="16"/>'
+        + '<rect x="12" y="4" width="1" height="16"/>'
+        + '<rect x="14" y="4" width="2" height="16"/>'
+        + '<rect x="17" y="4" width="1" height="16"/>'
+        + '<rect x="19" y="4" width="2" height="16"/>'
+        + '</svg>',
+    defaultSize: { w: 60, h: 12 },
+    defaults: {
+      type: 'barcode_h',
+      x: 5, y: 5, w: 60, h: 12,
+      barcode_type: 'code128',
+      value: '',
+    },
+  },
+  barcode_v: {
+    label: '竖向条形码',
+    badge: 'type-barcode',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">'
+        + '<rect x="4" y="3"  width="16" height="2"/>'
+        + '<rect x="4" y="6"  width="16" height="1"/>'
+        + '<rect x="4" y="8"  width="16" height="3"/>'
+        + '<rect x="4" y="12" width="16" height="1"/>'
+        + '<rect x="4" y="14" width="16" height="2"/>'
+        + '<rect x="4" y="17" width="16" height="1"/>'
+        + '<rect x="4" y="19" width="16" height="2"/>'
+        + '</svg>',
+    defaultSize: { w: 12, h: 60 },
+    defaults: {
+      type: 'barcode_v',
+      x: 5, y: 5, w: 12, h: 60,
+      barcode_type: 'code128',
+      value: '',
+    },
+  },
+  qrcode: {
+    label: '二维码',
+    badge: 'type-qrcode',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<rect x="3"  y="3"  width="6" height="6"/>'
+        + '<rect x="15" y="3"  width="6" height="6"/>'
+        + '<rect x="3"  y="15" width="6" height="6"/>'
+        + '<rect x="12" y="12" width="3" height="3" fill="currentColor" stroke="none"/>'
+        + '<rect x="17" y="13" width="2" height="2" fill="currentColor" stroke="none"/>'
+        + '<rect x="12" y="17" width="2" height="2" fill="currentColor" stroke="none"/>'
+        + '<rect x="16" y="17" width="3" height="3" fill="currentColor" stroke="none"/>'
+        + '</svg>',
+    defaultSize: { w: 25, h: 25 },
+    defaults: {
+      type: 'qrcode',
+      x: 5, y: 5, w: 25, h: 25,
+      value: '',
+    },
+  },
+};
+
+// 旧 BLOCK_TYPE_META 保留至 US-006 重命名;本轮新代码应使用 ELEMENT_TYPE_META
 const BLOCK_TYPE_META = {
   text:    { label: '文本',   badge: 'type-text'    },
   barcode: { label: '条形码', badge: 'type-barcode' },
