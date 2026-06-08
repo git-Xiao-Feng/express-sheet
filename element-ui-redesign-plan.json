@@ -55,7 +55,7 @@
       "files": [
         "internal/server/server.go"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-004",

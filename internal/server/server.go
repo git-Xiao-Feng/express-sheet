@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/xfeng/express-sheet/internal/codegen"
@@ -169,8 +168,24 @@ func decodeRenderRequest(r *http.Request) (template.RenderRequest, error) {
 	if len(bytes.TrimSpace(body)) == 0 {
 		return template.RenderRequest{}, fmt.Errorf("请求体为空")
 	}
+
+	// 1) 先用宽松解析把 JSON 读到 any(map / slice),递归剥离历史字段
+	//    (border / border_color / value_field / 顶层 fields),避免旧模板
+	//    携带这些字段时被 DisallowUnknownFields 拒绝。
+	var raw any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return template.RenderRequest{}, fmt.Errorf("JSON 解析失败: %v", err)
+	}
+	stripLegacyJSONFields(raw)
+
+	// 2) 把清洗后的 JSON 重新编码,再用 DisallowUnknownFields 严格解析,
+	//    这样真正的拼写错误(例如 borderr)仍会被 400 拦截。
+	cleaned, err := json.Marshal(raw)
+	if err != nil {
+		return template.RenderRequest{}, fmt.Errorf("JSON 重新编码失败: %v", err)
+	}
 	var req template.RenderRequest
-	dec := json.NewDecoder(strings.NewReader(string(body)))
+	dec := json.NewDecoder(bytes.NewReader(cleaned))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
 		return template.RenderRequest{}, fmt.Errorf("JSON 解析失败: %v", err)
@@ -179,6 +194,34 @@ func decodeRenderRequest(r *http.Request) (template.RenderRequest, error) {
 		return template.RenderRequest{}, err
 	}
 	return req, nil
+}
+
+// stripLegacyJSONFields 递归删除历史 JSON 字段,使 /api/pdf 兼容旧版本导出的模板:
+//
+//	每个对象内的 "border" / "border_color" / "value_field"
+//	顶层 / "template" 内的 "fields" 数组
+//
+// 旧 type 值(text / barcode)不在后端做映射 ——
+// 前端 stripLegacyFields 已经把 type 改成 text_h / barcode_h;
+// 任何未识别的 type 都会在 validate 阶段被 400 拦截,确保后端不会
+// 静默接受未知的语义。
+func stripLegacyJSONFields(v any) {
+	switch t := v.(type) {
+	case map[string]any:
+		delete(t, "border")
+		delete(t, "border_color")
+		delete(t, "value_field")
+		if _, ok := t["fields"].([]any); ok {
+			delete(t, "fields")
+		}
+		for _, vv := range t {
+			stripLegacyJSONFields(vv)
+		}
+	case []any:
+		for _, vv := range t {
+			stripLegacyJSONFields(vv)
+		}
+	}
 }
 
 func validate(t *template.Template) error {
@@ -198,10 +241,14 @@ func validate(t *template.Template) error {
 		}
 		ids[b.ID] = true
 		switch b.Type {
-		case template.BlockTextH, template.BlockBarcodeH, template.BlockQRCode, template.BlockRect:
+		case template.BlockTextH, template.BlockTextV,
+			template.BlockLineH, template.BlockLineV,
+			template.BlockRect,
+			template.BlockBarcodeH, template.BlockBarcodeV,
+			template.BlockQRCode:
 			// ok
 		default:
-			return fmt.Errorf("第 %d 个区块类型不支持: %s", i+1, html.EscapeString(string(b.Type)))
+			return fmt.Errorf("第 %d 个元素不支持的类型: %s", i+1, html.EscapeString(string(b.Type)))
 		}
 		if b.W <= 0 || b.H <= 0 {
 			return fmt.Errorf("第 %d 个区块尺寸无效 (id=%s)", i+1, b.ID)
