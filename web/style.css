@@ -404,6 +404,9 @@ input[type="checkbox"] {
   background: var(--c-surface);
   flex: 0 0 auto;
 }
+/* 「+ 添加元素」按钮 + 元素类型选择浮层的定位包裹层(US-007)
+   完整 popover 样式见 US-013,这里只做 position: relative 锚定 */
+.add-element-wrap { position: relative; display: flex; }
 .panel-title { display: flex; align-items: center; gap: 8px; }
 .panel-title h2 { font-size: var(--fs-xl); margin: 0; font-weight: 600; color: var(--c-text); }
 .panel-count {
