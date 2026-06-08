@@ -220,6 +220,10 @@ const dom = {
   modalConfirm: $('modal-confirm'),
   modalHelp:    $('modal-help'),
 
+  // 元素类型选择浮层(US-007 DOM,US-008 接交互)
+  btnAddElement:   $('btnAddElement'),
+  elementTypePicker: $('elementTypePicker'),
+
   // 预设
   btnPagePreset:  $('btnPagePreset'),
   psPresetLabel:  $('psPresetLabel'),
@@ -433,13 +437,17 @@ function renderElements() {
     empty.innerHTML = `
       <div class="element-empty-icon">▱</div>
       <div>还没有元素,先添加一个</div>
-      <div class="hint">元素是画布上的一个矩形区域,可绑定到某个字段来显示其值</div>
+      <div class="hint">点击「+ 添加元素」,从 8 种类型(横排文字 / 竖排文字 / 水平线 / 垂直线 / 矩形 / 横向条形码 / 竖向条形码 / 二维码)中任选一种创建</div>
     `;
     const btn = document.createElement('button');
     btn.className = 'btn btn-soft';
     btn.type = 'button';
     btn.textContent = '+ 添加元素';
-    btn.addEventListener('click', addElement);
+    btn.addEventListener('click', (e) => {
+      // stopPropagation 防止触发 document 的「外部点击关闭」逻辑
+      e.stopPropagation();
+      openElementTypePicker();
+    });
     empty.appendChild(btn);
     dom.elementsList.appendChild(empty);
     return;
@@ -727,7 +735,7 @@ async function onDeleteElement(idx) {
   const b = state.template.elements[idx];
   const ok = await confirmDialog({
     title: '删除元素',
-    msg: `确认删除元素「${b.id}」?此操作不可撤销。`,
+    msg: `确认删除元素「${b.id}」?`,
     okText: '删除',
   });
   if (!ok) return;
@@ -764,20 +772,59 @@ function selectElement(id, { reveal = false, fromCanvas = false } = {}) {
 
 // =====================================================================
 //  添加元素
+//  - US-008:接收 type 参数,从 ELEMENT_TYPE_META[type].defaults 合并
+//  - popover(US-007 DOM,US-008 接交互):3 种关闭方式(再点按钮 / 点外部 / Esc)
 // =====================================================================
-$('btnAddElement').addEventListener('click', addElement);
 
-function addElement() {
+// popover 开关
+function openElementTypePicker() {
+  if (!dom.elementTypePicker) return;
+  dom.elementTypePicker.hidden = false;
+  dom.btnAddElement.setAttribute('aria-expanded', 'true');
+  dom.btnAddElement.classList.add('open');
+}
+function closeElementTypePicker() {
+  if (!dom.elementTypePicker) return;
+  dom.elementTypePicker.hidden = true;
+  dom.btnAddElement.setAttribute('aria-expanded', 'false');
+  dom.btnAddElement.classList.remove('open');
+}
+function isElementTypePickerOpen() {
+  return dom.elementTypePicker && !dom.elementTypePicker.hidden;
+}
+
+// 按钮点击 → 切换 popover
+dom.btnAddElement.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (isElementTypePickerOpen()) closeElementTypePicker();
+  else openElementTypePicker();
+});
+
+// 点击 popover 内部选项 → addElement(type) → 关闭 popover
+dom.elementTypePicker.addEventListener('click', (e) => {
+  const item = e.target.closest('.etp-item[data-type]');
+  if (!item) return;
+  const type = item.dataset.type;
+  if (!ELEMENT_TYPE_META[type]) return; // 未知 type 兜底,不加
+  closeElementTypePicker();
+  addElement(type);
+});
+
+// 点击 document 其它位置 → 关闭 popover
+document.addEventListener('click', (e) => {
+  if (!isElementTypePickerOpen()) return;
+  if (dom.elementTypePicker.contains(e.target)) return;
+  if (dom.btnAddElement.contains(e.target)) return;
+  closeElementTypePicker();
+});
+
+// addElement(type) — 接收 type 参数,合并 ELEMENT_TYPE_META[type].defaults 生成新元素
+function addElement(type) {
+  const meta = ELEMENT_TYPE_META[type] || ELEMENT_TYPE_META.text_h;
   const newId = 'e_' + Date.now().toString(36);
-  state.template.elements.push({
-    id: newId,
-    type: 'text',
-    x: 5, y: 5, w: 40, h: 8,
-    font_size: 12, bold: false, align: 'left',
-    color: '#000000',
-    border: false,
-    value: '',
-  });
+  // 深拷贝 defaults,避免引用共享
+  const newEl = { id: newId, ...JSON.parse(JSON.stringify(meta.defaults)) };
+  state.template.elements.push(newEl);
   state.openElement.add(newId);
   renderElements();
   selectElement(newId, { reveal: true });
@@ -1764,6 +1811,8 @@ document.addEventListener('keydown', (e) => {
     }
   }
   if (e.key === 'Escape') {
+    // 优先关闭 popover(US-008:元素类型选择浮层)
+    if (isElementTypePickerOpen()) { closeElementTypePicker(); return; }
     // 优先关闭 modal
     if (!dom.modalHelp.hidden) { closeModal(dom.modalHelp); return; }
     if (!dom.modalConfirm.hidden) { return; }
