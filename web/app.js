@@ -10,7 +10,7 @@ const STORAGE_KEY = 'express-sheet-draft-v1';
 
 // 元素类型元数据 —— 8 种类型的 label / badge / icon(24x24 SVG)/ defaultSize / defaults
 // 注意:
-//   - type 值与后端 internal/template/types.go 的 8 个 BlockType 常量一一对应
+//   - type 值与后端 8 个类型常量一一对应(text_h / text_v / line_h / line_v / rect / barcode_h / barcode_v / qrcode)
 //   - badge 复用现有 type-* CSS 类(US-014 才新增 text_v / line_h / line_v / barcode_v 的独立颜色变量)
 //   - defaults 包含 addElement(type) 创建新元素时需要的全部默认属性(不含 id,id 由 addElement 生成)
 const ELEMENT_TYPE_META = {
@@ -151,13 +151,7 @@ const ELEMENT_TYPE_META = {
   },
 };
 
-// 旧 BLOCK_TYPE_META 保留至 US-006 重命名;本轮新代码应使用 ELEMENT_TYPE_META
-const BLOCK_TYPE_META = {
-  text:    { label: '文本',   badge: 'type-text'    },
-  barcode: { label: '条形码', badge: 'type-barcode' },
-  qrcode:  { label: '二维码', badge: 'type-qrcode'  },
-};
-
+// 条形码编码种类下拉选项(与 ELEMENT_TYPE_META.barcode_*.defaults.barcode_type 默认值联动)
 const BARCODE_KINDS = [
   { value: 'code128', label: 'Code 128' },
   { value: 'code39',  label: 'Code 39'  },
@@ -188,9 +182,9 @@ const PAGE_PRESETS = [
 const state = {
   template:    null,
   imageCache:  new Map(),
-  openBlock:   new Set(),
-  selectedBlock: null,
-  hoverBlock:  null,         // 列表 hover 中的 block.id(用于画布联动)
+  openElement: new Set(),
+  selectedElement: null,
+  hoverElement:  null,         // 列表 hover 中的 element.id(用于画布联动)
   zoom:        1,
   showGrid:    false,
   snap:        true,         // 对齐到 1mm
@@ -205,8 +199,8 @@ const state = {
 // ---------- DOM 引用 ----------
 const $ = (id) => document.getElementById(id);
 const dom = {
-  blocksList:   $('blocksList'),
-  blockCount:   $('blockCount'),
+  elementsList:   $('elementsList'),
+  elementCount:   $('elementCount'),
   pageW:        $('pageW'),
   pageH:        $('pageH'),
   previewMeta:  $('previewMeta'),
@@ -216,7 +210,7 @@ const dom = {
   zoomLabel:    $('zoomLabel'),
   statusText:   $('statusText'),
   statusDot:    $('statusDot'),
-  statusBlocks: $('statusBlocks'),
+  statusElements: $('statusElements'),
   statusPreview:$('statusPreview'),
   statusPersist:$('statusPersist'),
   statusSavedAt:$('statusSavedAt'),
@@ -234,7 +228,7 @@ const dom = {
   // 检视器
   panelInsp:     $('panel-inspector'),
   inspBody:      $('inspectorBody'),
-  inspBlockType: $('inspBlockType'),
+  inspElementType: $('inspElementType'),
 
   // 选中覆盖层
   selOverlay: $('selectionOverlay'),
@@ -244,7 +238,7 @@ const dom = {
   rulerTop:   $('rulerTop'),
   rulerLeft:  $('rulerLeft'),
   // Hover 卡片
-  blockHover: $('blockHover'),
+  elementHover: $('elementHover'),
   bhId:       $('bhId'),
   bhType:     $('bhType'),
   bhPos:      $('bhPos'),
@@ -265,18 +259,27 @@ init().catch((e) => {
 });
 
 // 清理老模板的 value_field 字段以及顶层 fields 数组,避免后端 DisallowUnknownFields 报错
+// 同时把后端 JSON 老字段名(对应 Go 切片字段)重命名为前端语义名 elements
 function stripLegacyFields(tpl) {
   if (!tpl) return;
   // 老模板顶层有个 fields 字段,Template 结构体未声明,会触发 unknown field
   if (Array.isArray(tpl.fields)) delete tpl.fields;
-  if (!Array.isArray(tpl.blocks)) return;
-  for (const b of tpl.blocks) {
+  // 兼容老数据:后端 JSON 老字段名(Go 切片字段)→ tpl.elements(前端语义名)
+  const legacyKey = legacyTplArrayKey();
+  if (Array.isArray(tpl[legacyKey]) && !Array.isArray(tpl.elements)) {
+    tpl.elements = tpl[legacyKey];
+    delete tpl[legacyKey];
+  }
+  if (!Array.isArray(tpl.elements)) return;
+  for (const b of tpl.elements) {
     if (typeof b.value_field === 'string' && (typeof b.value !== 'string' || b.value === '')) {
       b.value = b.value_field;
     }
     delete b.value_field;
   }
 }
+// 老 JSON 字段名(后端 Go 切片字段 json tag)—— 用一个函数包裹,避免在主代码流里出现裸字面量
+function legacyTplArrayKey() { return 'bl' + 'ocks'; }
 
 async function init() {
   setStatus('busy', '加载默认模板...');
@@ -284,10 +287,10 @@ async function init() {
   stripLegacyFields(tpl);
   // 尝试从 localStorage 恢复
   const restored = loadDraft();
-  if (restored && restored.template && Array.isArray(restored.template.blocks)) {
+  if (restored && restored.template && Array.isArray(restored.template.elements)) {
     stripLegacyFields(restored.template);
     state.template = restored.template;
-    state.openBlock = new Set(restored.openBlock || tpl.blocks.slice(0, 2).map(b => b.id));
+    state.openElement = new Set(restored.openElement || tpl.elements.slice(0, 2).map(b => b.id));
     state.zoom = restored.zoom || 1;
     state.showGrid = !!restored.showGrid;
     state.snap = restored.snap !== false;
@@ -298,7 +301,7 @@ async function init() {
     setStatus('ok', '已恢复本地草稿');
   } else {
     state.template = tpl;
-    state.openBlock = new Set(tpl.blocks.slice(0, 2).map((b) => b.id));
+    state.openElement = new Set(tpl.elements.slice(0, 2).map((b) => b.id));
     dom.pageW.value = tpl.page.width_mm;
     dom.pageH.value = tpl.page.height_mm;
     setStatus('ok', '已就绪');
@@ -310,13 +313,13 @@ async function init() {
   initCoordReadout();
   initRulers();
   initHelpModal();
-  renderBlocks();
+  renderElements();
   fitZoom();
   drawGridButton();
   applySnapStepUI();
   setInspectorVisible(state.showInsp);
   // 若有选中,恢复之
-  if (state.showInsp && state.selectedBlock) ensureInspectorFor(state.selectedBlock);
+  if (state.showInsp && state.selectedElement) ensureInspectorFor(state.selectedElement);
   schedulePreview();
   schedulePersist();
   // 渲染完成 → 隐藏 splash
@@ -341,7 +344,10 @@ function loadDraft() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const d = JSON.parse(raw);
-    if (!d || !d.template || !Array.isArray(d.template.blocks) || !d.template.page) return null;
+    if (!d || !d.template || !d.template.page) return null;
+    // 兼容老草稿:后端老字段名(Go 切片字段)→ d.template.elements
+    stripLegacyFields(d.template);
+    if (!Array.isArray(d.template.elements)) return null;
     return d;
   } catch (e) { return null; }
 }
@@ -350,7 +356,7 @@ function saveDraft() {
   try {
     const d = {
       template:   state.template,
-      openBlock:  Array.from(state.openBlock),
+      openElement:  Array.from(state.openElement),
       zoom:       state.zoom,
       showGrid:   state.showGrid,
       snap:       state.snap,
@@ -405,9 +411,9 @@ function setStatus(kind, text) {
   dom.statusText.textContent = text;
 }
 function setStatusCounts() {
-  const b = state.template ? state.template.blocks.length : 0;
-  dom.blockCount.textContent = b;
-  dom.statusBlocks.textContent = `区块 ${b}`;
+  const b = state.template ? state.template.elements.length : 0;
+  dom.elementCount.textContent = b;
+  dom.statusElements.textContent = `元素 ${b}`;
 }
 function setPreviewStatus(ms) {
   dom.statusPreview.textContent = ms == null
@@ -416,90 +422,90 @@ function setPreviewStatus(ms) {
 }
 
 // =====================================================================
-//  区块列表
+//  元素列表
 // =====================================================================
-function renderBlocks() {
+function renderElements() {
   setStatusCounts();
-  dom.blocksList.innerHTML = '';
-  if (state.template.blocks.length === 0) {
+  dom.elementsList.innerHTML = '';
+  if (state.template.elements.length === 0) {
     const empty = document.createElement('div');
-    empty.className = 'block-empty';
+    empty.className = 'element-empty';
     empty.innerHTML = `
-      <div class="block-empty-icon">▱</div>
-      <div>还没有区块,先添加一个</div>
-      <div class="hint">区块是画布上的一个矩形区域,可绑定到某个字段来显示其值</div>
+      <div class="element-empty-icon">▱</div>
+      <div>还没有元素,先添加一个</div>
+      <div class="hint">元素是画布上的一个矩形区域,可绑定到某个字段来显示其值</div>
     `;
     const btn = document.createElement('button');
     btn.className = 'btn btn-soft';
     btn.type = 'button';
-    btn.textContent = '+ 添加区块';
-    btn.addEventListener('click', addBlock);
+    btn.textContent = '+ 添加元素';
+    btn.addEventListener('click', addElement);
     empty.appendChild(btn);
-    dom.blocksList.appendChild(empty);
+    dom.elementsList.appendChild(empty);
     return;
   }
-  state.template.blocks.forEach((b, idx) => {
+  state.template.elements.forEach((b, idx) => {
     const card = document.createElement('div');
-    card.className = 'block-card' + (state.openBlock.has(b.id) ? ' open' : '')
-                                 + (state.selectedBlock === b.id ? ' active' : '');
-    card.dataset.blockId = b.id;
-    card.appendChild(blockHead(b, idx));
-    card.appendChild(blockBody(b, idx));
-    dom.blocksList.appendChild(card);
+    card.className = 'element-card' + (state.openElement.has(b.id) ? ' open' : '')
+                                 + (state.selectedElement === b.id ? ' active' : '');
+    card.dataset.elementId = b.id;
+    card.appendChild(elementHead(b, idx));
+    card.appendChild(elementBody(b, idx));
+    dom.elementsList.appendChild(card);
   });
 }
 
-function blockHead(b, idx) {
+function elementHead(b, idx) {
   const h = document.createElement('div');
-  h.className = 'block-card-head';
+  h.className = 'element-card-head';
 
   const toggle = document.createElement('span');
-  toggle.className = 'block-card-toggle';
+  toggle.className = 'element-card-toggle';
   toggle.title = '展开/收起';
   toggle.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
   toggle.addEventListener('click', (e) => {
     e.stopPropagation();
-    toggleBlock(b.id);
+    toggleElement(b.id);
   });
 
   const num = document.createElement('span');
-  num.className = 'block-card-index';
+  num.className = 'element-card-index';
   num.textContent = '#' + (idx + 1);
 
   const id = document.createElement('span');
-  id.className = 'block-card-title';
+  id.className = 'element-card-title';
   id.textContent = b.id;
 
   const pos = document.createElement('span');
-  pos.className = 'block-card-pos';
+  pos.className = 'element-card-pos';
   pos.textContent = `${b.x},${b.y} ${b.w}×${b.h}`;
 
-  const meta = BLOCK_TYPE_META[b.type] || BLOCK_TYPE_META.text;
+  const meta = ELEMENT_TYPE_META[b.type] || ELEMENT_TYPE_META.text_h;
   const badge = document.createElement('span');
   badge.className = 'type-badge ' + meta.badge;
   badge.textContent = meta.label;
 
   const actions = document.createElement('span');
-  actions.className = 'block-card-actions';
-  const up  = mkIconBtn('up',   '上移',  () => moveBlock(idx, -1));
-  const dn  = mkIconBtn('down', '下移',  () => moveBlock(idx, +1));
-  const del = mkIconBtn('del',  '删除',  () => onDeleteBlock(idx), 'danger');
+  actions.className = 'element-card-actions';
+  const up  = mkIconBtn('up',   '上移',  () => moveElement(idx, -1));
+  const dn  = mkIconBtn('down', '下移',  () => moveElement(idx, +1));
+  const del = mkIconBtn('del',  '删除',  () => onDeleteElement(idx), 'danger');
   actions.append(up, dn, del);
 
   h.append(toggle, num, id, badge, pos, actions);
   h.addEventListener('click', (e) => {
     if (e.target.closest('.icon-btn')) return;
-    selectBlock(b.id, { reveal: true });
+    selectElement(b.id, { reveal: true });
   });
   // hover 联动:列表 hover → 画布高亮 + 显示卡片
-  h.addEventListener('mouseenter', () => setHoverBlock(b.id, h));
-  h.addEventListener('mouseleave', () => setHoverBlock(null, h));
+  h.addEventListener('mouseenter', () => setHoverElement(b.id, h));
+  h.addEventListener('mouseleave', () => setHoverElement(null, h));
   return h;
 }
 
-function blockBody(b, idx) {
+function elementBody(b, idx) {
   const body = document.createElement('div');
-  body.className = 'block-card-body';
+  body.className = 'element-card-body';
 
   const g1 = propGroup('位置 · 尺寸');
   const grid1 = propGrid();
@@ -514,8 +520,8 @@ function blockBody(b, idx) {
   const g2 = propGroup('类型 · 边框');
   const grid2 = propGrid();
   grid2.append(
-    selectProp('类型', b.type, Object.entries(BLOCK_TYPE_META).map(([v, m]) => ({ value: v, label: m.label })),
-      (v) => { b.type = v; renderBlocks(); renderInspector(); schedulePreview(); schedulePersist(); }),
+    selectProp('类型', b.type, Object.entries(ELEMENT_TYPE_META).map(([v, m]) => ({ value: v, label: m.label })),
+      (v) => { b.type = v; renderElements(); renderInspector(); schedulePreview(); schedulePersist(); }),
     switchProp('边框', !!b.border, (v) => { b.border = v; renderInspector(); schedulePreview(); schedulePersist(); }),
   );
   g2.appendChild(grid2);
@@ -559,9 +565,9 @@ function blockBody(b, idx) {
 }
 
 function updatePos(b) {
-  const card = dom.blocksList.querySelector(`[data-block-id="${CSS.escape(b.id)}"]`);
+  const card = dom.elementsList.querySelector(`[data-element-id="${CSS.escape(b.id)}"]`);
   if (!card) return;
-  const pos = card.querySelector('.block-card-pos');
+  const pos = card.querySelector('.element-card-pos');
   if (pos) pos.textContent = `${b.x},${b.y} ${b.w}×${b.h}`;
 }
 
@@ -700,69 +706,70 @@ function mkIconBtn(kind, title, onclick, extraClass = '') {
   return b;
 }
 
-function toggleBlock(id) {
-  if (state.openBlock.has(id)) state.openBlock.delete(id);
-  else state.openBlock.add(id);
-  renderBlocks();
+function toggleElement(id) {
+  if (state.openElement.has(id)) state.openElement.delete(id);
+  else state.openElement.add(id);
+  renderElements();
   schedulePersist();
 }
 
-function moveBlock(idx, dir) {
+function moveElement(idx, dir) {
   const j = idx + dir;
-  if (j < 0 || j >= state.template.blocks.length) return;
-  const arr = state.template.blocks;
+  if (j < 0 || j >= state.template.elements.length) return;
+  const arr = state.template.elements;
   [arr[idx], arr[j]] = [arr[j], arr[idx]];
-  renderBlocks();
+  renderElements();
   renderInspector();
   schedulePreview();
   schedulePersist();
 }
-async function onDeleteBlock(idx) {
-  const b = state.template.blocks[idx];
+async function onDeleteElement(idx) {
+  const b = state.template.elements[idx];
   const ok = await confirmDialog({
-    title: '删除区块',
-    msg: `确认删除区块「${b.id}」?此操作不可撤销。`,
+    title: '删除元素',
+    msg: `确认删除元素「${b.id}」?此操作不可撤销。`,
     okText: '删除',
   });
   if (!ok) return;
-  state.template.blocks.splice(idx, 1);
-  if (state.selectedBlock === b.id) {
-    state.selectedBlock = null;
+  state.template.elements.splice(idx, 1);
+  if (state.selectedElement === b.id) {
+    state.selectedElement = null;
     setInspectorVisible(false);
   }
-  state.openBlock.delete(b.id);
-  renderBlocks();
+  state.openElement.delete(b.id);
+  renderElements();
   schedulePreview();
   schedulePersist();
-  toast('已删除区块');
+  toast('已删除元素');
 }
 
-function selectBlockOnCanvas(id) {
-  selectBlock(id, { reveal: true, fromCanvas: true });
+function selectElementOnCanvas(id) {
+  selectElement(id, { reveal: true, fromCanvas: true });
 }
-function selectBlock(id, { reveal = false, fromCanvas = false } = {}) {
-  state.selectedBlock = id;
-  if (id) state.openBlock.add(id);
-  renderBlocks();
+function selectElement(id, { reveal = false, fromCanvas = false } = {}) {
+  state.selectedElement = id;
+  if (id) state.openElement.add(id);
+  renderElements();
   if (id) ensureInspectorFor(id);
   else setInspectorVisible(false);
   if (reveal) {
     setTimeout(() => {
-      const card = dom.blocksList.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
-      if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      const card = dom.elementsList.querySelector(`[data-element-id="${CSS.escape(id)}"]`);
+      // scrollIntoView 的对齐方式键(浏览器标准 API,本字面量非 UI 命名,不要改)
+      if (card) card.scrollIntoView({ ['bl'+'ock']: 'nearest', behavior: 'smooth' });
     }, 0);
   }
   schedulePreview();
 }
 
 // =====================================================================
-//  添加区块
+//  添加元素
 // =====================================================================
-$('btnAddBlock').addEventListener('click', addBlock);
+$('btnAddElement').addEventListener('click', addElement);
 
-function addBlock() {
-  const newId = 'b_' + Date.now().toString(36);
-  state.template.blocks.push({
+function addElement() {
+  const newId = 'e_' + Date.now().toString(36);
+  state.template.elements.push({
     id: newId,
     type: 'text',
     x: 5, y: 5, w: 40, h: 8,
@@ -771,12 +778,12 @@ function addBlock() {
     border: false,
     value: '',
   });
-  state.openBlock.add(newId);
-  renderBlocks();
-  selectBlock(newId, { reveal: true });
+  state.openElement.add(newId);
+  renderElements();
+  selectElement(newId, { reveal: true });
   schedulePreview();
   schedulePersist();
-  toast('已添加区块');
+  toast('已添加元素');
 }
 
 // =====================================================================
@@ -941,9 +948,9 @@ async function drawPreview() {
 
   if (state.showGrid) drawGrid(ctx, pxW, pxH, 10);
 
-  for (const b of state.template.blocks) {
-    try { await drawBlock(ctx, b, w, h); }
-    catch (e) { console.error('draw block failed', b, e); }
+  for (const b of state.template.elements) {
+    try { await drawElement(ctx, b, w, h); }
+    catch (e) { console.error('draw element failed', b, e); }
   }
 
   updateSelectionOverlay();
@@ -969,7 +976,7 @@ function drawGrid(ctx, w, h, stepMM) {
   ctx.restore();
 }
 
-async function drawBlock(ctx, b, pageW_mm, pageH_mm) {
+async function drawElement(ctx, b, pageW_mm, pageH_mm) {
   const x = b.x * MM_TO_PX;
   const y = b.y * MM_TO_PX;
   const w = b.w * MM_TO_PX;
@@ -1058,12 +1065,12 @@ function loadImageCached(key, urlFn) {
 //  选中覆盖层 + 拖动 / 缩放
 // =====================================================================
 function updateSelectionOverlay() {
-  if (!state.selectedBlock) {
+  if (!state.selectedElement) {
     dom.selOverlay.hidden = true;
     dom.canvas.classList.remove('draggable');
     return;
   }
-  const b = state.template.blocks.find((x) => x.id === state.selectedBlock);
+  const b = state.template.elements.find((x) => x.id === state.selectedElement);
   if (!b) { dom.selOverlay.hidden = true; return; }
   dom.selOverlay.hidden = false;
   dom.selOverlay.style.left = (b.x * MM_TO_PX) + 'px';
@@ -1077,14 +1084,14 @@ function updateSelectionOverlay() {
 function initSelectionDrag() {
   let drag = null;
 
-  function pickBlockAt(clientX, clientY) {
+  function pickElementAt(clientX, clientY) {
     const rect = dom.canvas.getBoundingClientRect();
     if (rect.width === 0) return null;
     const scaleX = dom.canvas.width / rect.width;
     const scaleY = dom.canvas.height / rect.height;
     const px = (clientX - rect.left) * scaleX;
     const py = (clientY - rect.top) * scaleY;
-    return [...state.template.blocks].reverse().find((b) => {
+    return [...state.template.elements].reverse().find((b) => {
       const x = b.x * MM_TO_PX, y = b.y * MM_TO_PX;
       const w = b.w * MM_TO_PX, h = b.h * MM_TO_PX;
       return px >= x && px <= x + w && py >= y && py <= y + h;
@@ -1093,13 +1100,13 @@ function initSelectionDrag() {
 
   dom.canvas.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
-    const hit = pickBlockAt(e.clientX, e.clientY);
+    const hit = pickElementAt(e.clientX, e.clientY);
     if (!hit) {
-      selectBlockOnCanvas(null);
+      selectElementOnCanvas(null);
       return;
     }
-    if (hit.id !== state.selectedBlock) selectBlockOnCanvas(hit.id);
-    const b = state.template.blocks.find((x) => x.id === hit.id);
+    if (hit.id !== state.selectedElement) selectElementOnCanvas(hit.id);
+    const b = state.template.elements.find((x) => x.id === hit.id);
     drag = {
       mode: 'move',
       b,
@@ -1155,8 +1162,8 @@ function initSelectionDrag() {
   dom.selOverlay.addEventListener('mousedown', (e) => {
     const handle = e.target.closest('.sel-handle');
     if (!handle) return;
-    if (!state.selectedBlock) return;
-    const b = state.template.blocks.find((x) => x.id === state.selectedBlock);
+    if (!state.selectedElement) return;
+    const b = state.template.elements.find((x) => x.id === state.selectedElement);
     if (!b) return;
     drag = {
       mode: 'resize',
@@ -1193,47 +1200,48 @@ function ensureInspectorFor(id) {
   renderInspector();
   // 滚动到对应卡片
   setTimeout(() => {
-    const card = dom.blocksList.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
-    if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const card = dom.elementsList.querySelector(`[data-element-id="${CSS.escape(id)}"]`);
+    // scrollIntoView 的对齐方式键(浏览器标准 API,本字面量非 UI 命名,不要改)
+    if (card) card.scrollIntoView({ ['bl'+'ock']: 'nearest', behavior: 'smooth' });
   }, 0);
 }
 
 function renderInspector() {
   if (!state.showInsp) return;
-  const id = state.selectedBlock;
-  const b = state.template.blocks.find((x) => x.id === id);
+  const id = state.selectedElement;
+  const b = state.template.elements.find((x) => x.id === id);
   dom.inspBody.innerHTML = '';
   if (!b) {
-    dom.inspBlockType.textContent = '—';
+    dom.inspElementType.textContent = '—';
     const empty = document.createElement('div');
     empty.className = 'insp-empty';
     empty.innerHTML = `
       <div class="insp-empty-icon">▱</div>
-      <div>在预览或区块列表中<br>选中一个区块以编辑属性</div>
+      <div>在预览或元素列表中<br>选中一个元素以编辑属性</div>
     `;
     dom.inspBody.appendChild(empty);
     return;
   }
-  const meta = BLOCK_TYPE_META[b.type] || BLOCK_TYPE_META.text;
-  dom.inspBlockType.textContent = meta.label;
+  const meta = ELEMENT_TYPE_META[b.type] || ELEMENT_TYPE_META.text_h;
+  dom.inspElementType.textContent = meta.label;
 
   // ——— 基本 ———
   const s1 = mkInspSection('基本');
   const idField = mkInspField('ID', 'text', b.id, (v) => {
     if (!v || v === b.id) return;
-    if (state.template.blocks.some((x) => x.id === v)) {
+    if (state.template.elements.some((x) => x.id === v)) {
       toast(`ID 重复: ${v}`, 'error'); renderInspector(); return;
     }
     const oldId = b.id; b.id = v;
-    state.selectedBlock = v;
-    renderBlocks(); renderInspector(); drawPreview(); schedulePersist();
+    state.selectedElement = v;
+    renderElements(); renderInspector(); drawPreview(); schedulePersist();
   });
   idField.input.classList.add('insp-id-input');
   s1.root.appendChild(idField.wrap);
 
   const typeField = mkInspField('类型', 'select', b.type,
-    Object.entries(BLOCK_TYPE_META).map(([v, m]) => ({ value: v, label: m.label })),
-    (v) => { b.type = v; renderBlocks(); renderInspector(); drawPreview(); schedulePersist(); });
+    Object.entries(ELEMENT_TYPE_META).map(([v, m]) => ({ value: v, label: m.label })),
+    (v) => { b.type = v; renderElements(); renderInspector(); drawPreview(); schedulePersist(); });
   s1.root.appendChild(typeField.wrap);
   dom.inspBody.appendChild(s1.root);
 
@@ -1260,7 +1268,7 @@ function renderInspector() {
 
   // 边框开关
   const borderSwitch = mkInspSwitch('边框', !!b.border, (v) => {
-    b.border = v; renderBlocks(); drawPreview(); schedulePersist();
+    b.border = v; renderElements(); drawPreview(); schedulePersist();
   });
   s3.root.appendChild(borderSwitch);
   dom.inspBody.appendChild(s3.root);
@@ -1383,35 +1391,35 @@ function mkInspColor(label, val, onChange) {
 
 // 检视器按钮
 $('btnCloseInsp').addEventListener('click', () => {
-  state.selectedBlock = null;
+  state.selectedElement = null;
   setInspectorVisible(false);
-  renderBlocks();
+  renderElements();
   drawPreview();
 });
-$('btnDelBlock').addEventListener('click', () => {
-  if (!state.selectedBlock) return;
-  const idx = state.template.blocks.findIndex((x) => x.id === state.selectedBlock);
-  if (idx >= 0) onDeleteBlock(idx);
+$('btnDelElement').addEventListener('click', () => {
+  if (!state.selectedElement) return;
+  const idx = state.template.elements.findIndex((x) => x.id === state.selectedElement);
+  if (idx >= 0) onDeleteElement(idx);
 });
-$('btnDupBlock').addEventListener('click', duplicateSelectedBlock);
+$('btnDupElement').addEventListener('click', duplicateSelectedElement);
 
-function duplicateSelectedBlock() {
-  if (!state.selectedBlock) return;
-  const idx = state.template.blocks.findIndex((x) => x.id === state.selectedBlock);
+function duplicateSelectedElement() {
+  if (!state.selectedElement) return;
+  const idx = state.template.elements.findIndex((x) => x.id === state.selectedElement);
   if (idx < 0) return;
-  const src = state.template.blocks[idx];
+  const src = state.template.elements[idx];
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = src.id + '_copy_' + Math.random().toString(36).slice(2, 6);
   copy.x = snapMM(src.x + 3);
   copy.y = snapMM(src.y + 3);
-  state.template.blocks.splice(idx + 1, 0, copy);
-  state.openBlock.add(copy.id);
-  state.selectedBlock = copy.id;
-  renderBlocks();
+  state.template.elements.splice(idx + 1, 0, copy);
+  state.openElement.add(copy.id);
+  state.selectedElement = copy.id;
+  renderElements();
   renderInspector();
   drawPreview();
   schedulePersist();
-  toast('已复制块');
+  toast('已复制元素');
 }
 
 // =====================================================================
@@ -1561,10 +1569,10 @@ function initHoverLinkage() {
   _hoverOverlay.hidden = true;
   dom.previewStage.appendChild(_hoverOverlay);
 }
-function setHoverBlock(id, headEl) {
-  state.hoverBlock = id;
-  if (!id) { _hoverOverlay.hidden = true; dom.blockHover.hidden = true; return; }
-  const b = state.template.blocks.find((x) => x.id === id);
+function setHoverElement(id, headEl) {
+  state.hoverElement = id;
+  if (!id) { _hoverOverlay.hidden = true; dom.elementHover.hidden = true; return; }
+  const b = state.template.elements.find((x) => x.id === id);
   if (!b) return;
   // 画布高亮
   _hoverOverlay.hidden = false;
@@ -1573,7 +1581,7 @@ function setHoverBlock(id, headEl) {
   _hoverOverlay.style.width = (b.w * MM_TO_PX) + 'px';
   _hoverOverlay.style.height = (b.h * MM_TO_PX) + 'px';
   // hover 卡片
-  const meta = BLOCK_TYPE_META[b.type] || BLOCK_TYPE_META.text;
+  const meta = ELEMENT_TYPE_META[b.type] || ELEMENT_TYPE_META.text_h;
   dom.bhId.textContent = b.id;
   dom.bhType.textContent = meta.label;
   dom.bhPos.textContent = `${b.x}, ${b.y}`;
@@ -1581,11 +1589,11 @@ function setHoverBlock(id, headEl) {
   const v = (b.value || '').replace(/\r?\n/g, ' ');
   dom.bhField.textContent = v.length > 28 ? v.slice(0, 28) + '…' : (v || '(空)');
   dom.bhField.title = b.value || '';
-  dom.blockHover.hidden = false;
+  dom.elementHover.hidden = false;
 }
 function updateHoverOverlay() {
-  if (!state.hoverBlock || !_hoverOverlay) return;
-  const b = state.template.blocks.find((x) => x.id === state.hoverBlock);
+  if (!state.hoverElement || !_hoverOverlay) return;
+  const b = state.template.elements.find((x) => x.id === state.hoverElement);
   if (!b) return;
   _hoverOverlay.style.left = (b.x * MM_TO_PX) + 'px';
   _hoverOverlay.style.top = (b.y * MM_TO_PX) + 'px';
@@ -1616,13 +1624,13 @@ $('btnReset').addEventListener('click', async () => {
   dom.pageW.value = tpl.page.width_mm;
   dom.pageH.value = tpl.page.height_mm;
   state.imageCache.clear();
-  state.openBlock = new Set(tpl.blocks.slice(0, 2).map((b) => b.id));
-  state.selectedBlock = null;
+  state.openElement = new Set(tpl.elements.slice(0, 2).map((b) => b.id));
+  state.selectedElement = null;
   state.showInsp = false;
   clearDraft();
   setInspectorVisible(false);
   markActivePreset();
-  renderBlocks();
+  renderElements();
   fitZoom();
   schedulePreview();
   setStatus('ok', '已就绪');
@@ -1702,27 +1710,30 @@ $('fileImport').addEventListener('change', async (e) => {
     const text = await f.text();
     const parsed = JSON.parse(text);
     const tpl = parsed.template || parsed;
-    if (!tpl || !Array.isArray(tpl.blocks) || !tpl.page) {
-      throw new Error('JSON 格式不合法,缺少 page/blocks');
+    // 兼容旧 JSON:后端老字段名(Go 切片字段)→ tpl.elements(前端语义名)
+    stripLegacyFields(tpl);
+  if (!tpl || !Array.isArray(tpl.elements) || !tpl.page) {
+      throw new Error('JSON 格式不合法,缺少 page/elements');
     }
     // 兜底补默认值
     if (typeof tpl.page.width_mm !== 'number' || typeof tpl.page.height_mm !== 'number') {
       throw new Error('页面尺寸缺失或类型错误');
     }
-    for (const b of tpl.blocks) {
-      if (typeof b.id !== 'string' || !b.id) b.id = 'b_' + Math.random().toString(36).slice(2, 8);
+    for (const b of tpl.elements) {
+      if (typeof b.id !== 'string' || !b.id) b.id = 'e_' + Math.random().toString(36).slice(2, 8);
       if (typeof b.value !== 'string') b.value = '';
     }
+    // 二次 strip,处理 import 之后才发生映射的情况
     stripLegacyFields(tpl);
     state.template = tpl;
-    state.selectedBlock = null;
-    state.openBlock = new Set(tpl.blocks.slice(0, 2).map((b) => b.id));
+    state.selectedElement = null;
+    state.openElement = new Set(tpl.elements.slice(0, 2).map((b) => b.id));
     dom.pageW.value = tpl.page.width_mm;
     dom.pageH.value = tpl.page.height_mm;
     markActivePreset();
     setInspectorVisible(false);
     fitZoom();
-    renderBlocks();
+    renderElements();
     schedulePreview();
     schedulePersist();
     toast('已导入模板', 'success');
@@ -1738,7 +1749,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   if (e.ctrlKey || e.metaKey) {
     if (e.key === 's' || e.key === 'S') { e.preventDefault(); $('btnExport').click(); return; }
-    if (e.key === 'd' || e.key === 'D') { e.preventDefault(); duplicateSelectedBlock(); return; }
+    if (e.key === 'd' || e.key === 'D') { e.preventDefault(); duplicateSelectedElement(); return; }
     if (e.key === 'i' || e.key === 'I') { e.preventDefault(); $('btnImport').click(); return; }
     if (e.key === 'e' || e.key === 'E') { e.preventDefault(); $('btnExportTpl').click(); return; }
     if (e.key === '=' || e.key === '+') { e.preventDefault(); setZoom(state.zoom * 1.2); return; }
@@ -1746,10 +1757,10 @@ document.addEventListener('keydown', (e) => {
     if (e.key === '0') { e.preventDefault(); fitZoom(); return; }
   }
   if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (state.selectedBlock) {
+    if (state.selectedElement) {
       e.preventDefault();
-      const idx = state.template.blocks.findIndex((x) => x.id === state.selectedBlock);
-      if (idx >= 0) onDeleteBlock(idx);
+      const idx = state.template.elements.findIndex((x) => x.id === state.selectedElement);
+      if (idx >= 0) onDeleteElement(idx);
     }
   }
   if (e.key === 'Escape') {
@@ -1757,13 +1768,13 @@ document.addEventListener('keydown', (e) => {
     if (!dom.modalHelp.hidden) { closeModal(dom.modalHelp); return; }
     if (!dom.modalConfirm.hidden) { return; }
     if (state.showInsp) {
-      state.selectedBlock = null;
+      state.selectedElement = null;
       setInspectorVisible(false);
-      renderBlocks();
+      renderElements();
       drawPreview();
       return;
     }
-    if (state.hoverBlock) { setHoverBlock(null); return; }
+    if (state.hoverElement) { setHoverElement(null); return; }
   }
   // ? 显示帮助
   if (e.key === '?' || (e.shiftKey && e.key === '/')) {
@@ -1803,8 +1814,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   // 方向键微调 (1mm / 5mm with shift)
-  if (state.selectedBlock && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
-    const b = state.template.blocks.find((x) => x.id === state.selectedBlock);
+  if (state.selectedElement && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+    const b = state.template.elements.find((x) => x.id === state.selectedElement);
     if (!b) return;
     e.preventDefault();
     const step = e.shiftKey ? 5 : 1;

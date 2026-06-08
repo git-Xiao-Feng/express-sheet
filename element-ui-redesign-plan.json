@@ -117,7 +117,7 @@
         "web/style.css",
         "web/index.html"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",

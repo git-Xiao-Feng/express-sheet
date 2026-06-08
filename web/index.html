@@ -75,19 +75,19 @@
 
   <!-- ===================== 主体 ===================== -->
   <main class="main">
-    <!-- 左栏:区块 -->
-    <section class="panel" id="panel-blocks">
+    <!-- 左栏:元素 -->
+    <section class="panel" id="panel-elements">
       <header class="panel-header">
         <div class="panel-title">
-          <h2>区块</h2>
-          <span class="panel-count" id="blockCount">0</span>
+          <h2>元素</h2>
+          <span class="panel-count" id="elementCount">0</span>
         </div>
-        <button id="btnAddBlock" class="btn btn-soft" type="button">
+        <button id="btnAddElement" class="btn btn-soft" type="button">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          <span>添加区块</span>
+          <span>添加元素</span>
         </button>
       </header>
-      <div id="blocksList" class="panel-body block-list"></div>
+      <div id="elementsList" class="panel-body element-list"></div>
     </section>
 
     <!-- 右栏:预览 -->
@@ -144,7 +144,7 @@
               <div class="sel-handle" data-handle="w"></div>
               <div class="sel-label" id="selLabel"></div>
             </div>
-            <div class="block-hover" id="blockHover" hidden>
+            <div class="element-hover" id="elementHover" hidden>
               <div class="bh-id" id="bhId">—</div>
               <div class="bh-row">
                 <span>类型</span><b id="bhType">—</b>
@@ -170,13 +170,13 @@
       <header class="panel-header">
         <div class="panel-title">
           <h2>检视器</h2>
-          <span class="panel-count" id="inspBlockType">—</span>
+          <span class="panel-count" id="inspElementType">—</span>
         </div>
         <div class="inspector-actions">
-          <button id="btnDupBlock" class="icon-btn" title="复制块 (Ctrl+D)" type="button">
+          <button id="btnDupElement" class="icon-btn" title="复制元素 (Ctrl+D)" type="button">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
-          <button id="btnDelBlock" class="icon-btn danger" title="删除块 (Del)" type="button">
+          <button id="btnDelElement" class="icon-btn danger" title="删除元素 (Del)" type="button">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
           </button>
           <button id="btnCloseInsp" class="icon-btn" title="关闭检视器 (Esc)" type="button">
@@ -195,7 +195,7 @@
       <span id="statusText">已就绪</span>
     </div>
     <div class="status-right">
-      <span class="status-item" id="statusBlocks">区块 0</span>
+      <span class="status-item" id="statusElements">元素 0</span>
       <span class="status-divider"></span>
       <span class="status-item" id="statusPreview">最近渲染 —</span>
       <span class="status-divider"></span>
@@ -260,11 +260,11 @@
           <div class="help-row"><kbd>Ctrl</kbd>+<kbd>0</kbd><span>适应窗口</span></div>
         </div>
         <div class="help-section">
-          <div class="help-section-title">选中块</div>
+          <div class="help-section-title">选中元素</div>
           <div class="help-row"><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd><span>1 mm 微调</span></div>
           <div class="help-row"><kbd>Shift</kbd>+<kbd>↑↓←→</kbd><span>5 mm 大幅微调</span></div>
-          <div class="help-row"><kbd>Ctrl</kbd>+<kbd>D</kbd><span>复制当前块</span></div>
-          <div class="help-row"><kbd>Del</kbd><span>删除当前块</span></div>
+          <div class="help-row"><kbd>Ctrl</kbd>+<kbd>D</kbd><span>复制当前元素</span></div>
+          <div class="help-row"><kbd>Del</kbd><span>删除当前元素</span></div>
           <div class="help-row"><kbd>Esc</kbd><span>关闭检视器 / 弹窗</span></div>
         </div>
         <div class="help-section">
