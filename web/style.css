@@ -428,7 +428,9 @@ input[type="checkbox"] {
 .element-type-picker {
   position: absolute;
   top: calc(100% + 6px);          /* 按钮底边下 6px,与 .ps-preset-menu 节奏一致 */
-  right: 0;                       /* 右对齐,与触发按钮右侧贴齐 */
+  right: -12px;                   /* 相对 right:0 向右偏移 12px,避免窄面板(<980px → --col-elements:220px)下
+                                     popover 左边缘(右对齐后 240px 宽向左延伸)被 .panel 的 overflow:hidden 裁掉
+                                     第一列(text_h/line_h/barcode_h) */
   min-width: 240px;               /* > 240 时 grid 走 3 列,< 240 走 2 列 */
   z-index: 50;                    /* 与 .ps-preset-menu 同级,避免与 modal 冲突 */
   padding: 12px;
