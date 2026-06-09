@@ -70,11 +70,16 @@ func drawBlock(pdf *gofpdf.Fpdf, b template.Block, fontBytes []byte) error {
 	return nil
 }
 
+// drawRect 绘制「矩形框」(空心,仅描边不填充):
+// SetDrawColor + SetLineWidth(0.2) 与 drawLineH/drawLineV 风格一致;
+// 第四个参数 "D" = draw(stroke only),与历史 "F" 实心填充语义不同。
+// 改成空心框后,b_fraction_box(黑色矩形框)+ b_fraction(黑色 1/2 文字)才能
+// 视觉共存 —— 实心矩形会把同位置文字涂成不可见。
 func drawRect(pdf *gofpdf.Fpdf, b template.Block) error {
 	r, g, bb := parseColor(b.Color)
-	pdf.SetFillColor(r, g, bb)
-	// 第四个参数 "F" = filled;若用户希望仅描边可加 border:false 时切到 "D"
-	pdf.Rect(b.X, b.Y, b.W, b.H, "F")
+	pdf.SetDrawColor(r, g, bb)
+	pdf.SetLineWidth(0.2)
+	pdf.Rect(b.X, b.Y, b.W, b.H, "D")
 	return nil
 }
 

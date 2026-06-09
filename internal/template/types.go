@@ -34,7 +34,7 @@ const (
 	// 图形类
 	BlockLineH   BlockType = "line_h" // 水平线
 	BlockLineV   BlockType = "line_v" // 垂直线
-	BlockRect    BlockType = "rect"   // 实心矩形
+	BlockRect    BlockType = "rect"   // 矩形框(空心,仅描边)
 	// 条形码/二维码
 	BlockBarcodeH BlockType = "barcode_h" // 横向条形码
 	BlockBarcodeV BlockType = "barcode_v" // 竖向条形码

@@ -87,7 +87,6 @@ const ELEMENT_TYPE_META = {
       type: 'rect',
       x: 5, y: 5, w: 20, h: 10,
       color: '#000000',
-      fill: true,
     },
   },
   barcode_h: {
@@ -1142,11 +1141,14 @@ function drawLineV(ctx, x, y, w, h, b) {
   ctx.restore();
 }
 
-// US-010: 矩形 —— 实心填充,fill 由 b.color 决定
+// US-010 改为「矩形框(空心,仅描边)」:stroke 由 b.color 决定,线宽同 line_h/line_v 默认 0.2mm
+// 原实心填充会让 b_fraction_box(黑色矩形)盖在 b_fraction(黑色 1/2 文字)上,
+// 把文字涂成不可见,改成空心框后 1/2 文字自然落在矩形框内,与 US-004 「分数 1/2 显示在矩形框内」对齐
 function drawRect(ctx, x, y, w, h, b) {
   ctx.save();
-  ctx.fillStyle = b.color || '#000000';
-  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = b.color || '#000000';
+  ctx.lineWidth = (b.line_width || 0.2) * MM_TO_PX;
+  ctx.strokeRect(x, y, w, h);
   ctx.restore();
 }
 

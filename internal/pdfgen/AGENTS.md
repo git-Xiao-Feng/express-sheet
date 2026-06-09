@@ -1,7 +1,7 @@
 # internal/pdfgen 经验
 
 - 渲染入口 `Generate(tpl, values, fontBytes)`,遍历 `tpl.Blocks` 调 `drawBlock`
-- `drawBlock` switch 现已覆盖 8 个 BlockType,新增 `drawTextV` / `drawLineH` / `drawLineV` / `drawBarcodeV`;`drawRect` 仍走 `pdf.Rect(..., "F")` 实心填充
+- `drawBlock` switch 现已覆盖 8 个 BlockType,新增 `drawTextV` / `drawLineH` / `drawLineV` / `drawBarcodeV`;`drawRect` 走 `pdf.Rect(..., "D")` 仅描边(空心矩形框),`SetDrawColor` + `SetLineWidth(0.2)` 与 drawLineH/drawLineV 风格一致
 - 不再有 `drawBorder` / `b.Border` 概念:边框需求改用 `line_h` / `line_v` / `rect` 三种独立元素表达
 - 条形码用 codegen 包生成 PNG 后通过 gofpdf RegisterImageOptionsReader + Image 注入
 - 二维码按 bounding box 短边居中
