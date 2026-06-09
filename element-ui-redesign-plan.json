@@ -196,7 +196,7 @@
       "files": [
         "web/app.js"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-011",

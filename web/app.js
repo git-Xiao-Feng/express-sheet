@@ -1017,30 +1017,108 @@ function drawGrid(ctx, w, h, stepMM) {
   ctx.restore();
 }
 
+// US-010: 8 种元素类型 switch 分发(替换旧 if/else if 链路);删除原 b.border 边框分支
+//   —— 边框需求改由独立的 line_h / line_v / rect 元素承担(US-009 同步移除 Block.border 字段)
 async function drawElement(ctx, b, pageW_mm, pageH_mm) {
   const x = b.x * MM_TO_PX;
   const y = b.y * MM_TO_PX;
   const w = b.w * MM_TO_PX;
   const h = b.h * MM_TO_PX;
   const val = b.value || '';
-  if (b.type === 'text') {
-    drawText(ctx, val, x, y, w, h, b);
-  } else if (b.type === 'barcode') {
-    await drawBarcode(ctx, val, x, y, w, h, b.barcode_type || 'code128');
-  } else if (b.type === 'qrcode') {
-    const side = Math.min(w, h);
-    const ox = x + (w - side) / 2;
-    const oy = y + (h - side) / 2;
-    await drawQRCode(ctx, val, ox, oy, side);
+  switch (b.type) {
+    case 'text_h':
+      drawText(ctx, val, x, y, w, h, b);
+      break;
+    case 'text_v':
+      drawTextV(ctx, val, x, y, w, h, b);
+      break;
+    case 'line_h':
+      drawLineH(ctx, x, y, w, h, b);
+      break;
+    case 'line_v':
+      drawLineV(ctx, x, y, w, h, b);
+      break;
+    case 'rect':
+      drawRect(ctx, x, y, w, h, b);
+      break;
+    case 'barcode_h':
+      await drawBarcode(ctx, val, x, y, w, h, b.barcode_type || 'code128');
+      break;
+    case 'barcode_v':
+      await drawBarcodeV(ctx, val, x, y, w, h, b.barcode_type || 'code128');
+      break;
+    case 'qrcode': {
+      const side = Math.min(w, h);
+      const ox = x + (w - side) / 2;
+      const oy = y + (h - side) / 2;
+      await drawQRCode(ctx, val, ox, oy, side);
+      break;
+    }
+    // 未知 type 兜底不绘制 —— DevTools 强行改 type 后只会画不出来,不会让前端崩溃;
+    // 后端 validate(US-003)会在导出 PDF 时返回 400(US-009 acceptance #6)
   }
-  // 边框(所有类型通用,绘制在内容之上)
-  if (b.border) {
-    ctx.save();
-    ctx.strokeStyle = b.color || '#000000';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, w, h);
-    ctx.restore();
+}
+
+// US-010: 竖排文字 —— 按 code point 逐字符 fillText,Y 累加 lineH;
+//   列中心 X 由 b.align 决定(left/center/right,默认 center)
+function drawTextV(ctx, text, x, y, w, h, b) {
+  if (!text) return;
+  const fontSizePt = b.font_size || 12;
+  const fontPx = Math.max(6, fontSizePt * 96 / 72);
+  ctx.save();
+  ctx.fillStyle = b.color || '#000000';
+  ctx.font = `${b.bold ? 'bold ' : ''}${fontPx}px "Microsoft YaHei", "SimHei", "PingFang SC", sans-serif`;
+  ctx.textBaseline = 'top';
+  // 水平位置由 b.align 决定(竖排文字的「列中心 X」)
+  let cx;
+  if (b.align === 'left')        cx = x + fontPx / 2;
+  else if (b.align === 'right')  cx = x + w - fontPx / 2;
+  else                           cx = x + w / 2;
+  ctx.textAlign = 'center';
+  const lineH = fontPx * 1.15;
+  let ty = y;
+  // for-of 迭代 code point(避免 surrogate pair 把一个中文切成两半)
+  for (const ch of text) {
+    if (ty + lineH > y + h + 0.5) break;
+    if (ch === '\n') { ty += lineH; continue; }
+    ctx.fillText(ch, cx, ty);
+    ty += lineH;
   }
+  ctx.restore();
+}
+
+// US-010: 水平线 —— 沿 bbox 水平中线画一条线,线宽 = b.line_width(mm) × MM_TO_PX
+function drawLineH(ctx, x, y, w, h, b) {
+  const cy = y + h / 2;
+  ctx.save();
+  ctx.strokeStyle = b.color || '#000000';
+  ctx.lineWidth = (b.line_width || 0.2) * MM_TO_PX;
+  ctx.beginPath();
+  ctx.moveTo(x, cy);
+  ctx.lineTo(x + w, cy);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// US-010: 垂直线 —— 沿 bbox 垂直中线画一条线
+function drawLineV(ctx, x, y, w, h, b) {
+  const cx = x + w / 2;
+  ctx.save();
+  ctx.strokeStyle = b.color || '#000000';
+  ctx.lineWidth = (b.line_width || 0.2) * MM_TO_PX;
+  ctx.beginPath();
+  ctx.moveTo(cx, y);
+  ctx.lineTo(cx, y + h);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// US-010: 矩形 —— 实心填充,fill 由 b.color 决定
+function drawRect(ctx, x, y, w, h, b) {
+  ctx.save();
+  ctx.fillStyle = b.color || '#000000';
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
 }
 
 function drawText(ctx, text, x, y, w, h, b) {
@@ -1075,6 +1153,30 @@ async function drawBarcode(ctx, text, x, y, w, h, kind) {
     return u.toString();
   });
   if (img) ctx.drawImage(img, x, y, w, h);
+}
+
+// US-010: 竖向条形码 —— 复用 /api/image 拿水平条形图样,绕 bbox 中心顺时针旋转 90°
+//   缓存 key 加 v: 前缀,避免与 barcode_h 共享同一张缓存图(否则 barcode_v 旋转后画出来视觉错乱)
+//   旋转后图像在「对调」的 -h/2,-w/2,h,w 矩形内绘制,4 个角正好落在原 bbox 四角
+async function drawBarcodeV(ctx, text, x, y, w, h, kind) {
+  const cacheKey = `v:bar|${kind}|${text}|${Math.round(w)}|${Math.round(h)}`;
+  const img = await loadImageCached(cacheKey, () => {
+    const u = new URL('/api/image', location.origin);
+    u.searchParams.set('type', 'barcode');
+    u.searchParams.set('kind', kind);
+    u.searchParams.set('content', text || ' ');
+    u.searchParams.set('w', String(Math.max(40, Math.round(w * 4))));
+    u.searchParams.set('h', String(Math.max(20, Math.round(h * 4))));
+    return u.toString();
+  });
+  if (!img) return;
+  ctx.save();
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(img, -h / 2, -w / 2, h, w);
+  ctx.restore();
 }
 
 async function drawQRCode(ctx, text, x, y, side) {
