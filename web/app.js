@@ -462,10 +462,17 @@ function renderElements() {
   }
   state.template.elements.forEach((b, idx) => {
     const card = document.createElement('div');
-    card.className = 'element-card' + (state.openElement.has(b.id) ? ' open' : '')
+    // US-015:卡片新增 .type-<type> 类,作为「按类型分配展开态固定高度」的 CSS 钩子
+    // (US-015 在 .element-card.open.type-text_h / .type-line_h / .type-rect /
+    //  .type-barcode_h / .type-qrcode 5 档规则上挂不同 height 变量)
+    const safeType = ELEMENT_TYPE_META[b.type] ? b.type : 'text_h';
+    card.className = 'element-card type-' + safeType
+                                 + (state.openElement.has(b.id) ? ' open' : '')
                                  + (state.selectedElement === b.id ? ' active' : '');
     card.dataset.elementId = b.id;
-    // US-012: head 已移入 elementBody 内部作为 sticky 锚点,card 只挂 body
+    // US-015:head 移回 card 直接子节点 —— body 不再是滚动容器,sticky 锚点失去意义,
+    // head 与 body 各自作为 card 的 flex 列子节点(head flex:0 0 auto, body flex:1 1 auto)
+    card.appendChild(elementHead(b, idx));
     card.appendChild(elementBody(b, idx));
     dom.elementsList.appendChild(card);
   });
@@ -523,11 +530,10 @@ function elementBody(b, idx) {
   const body = document.createElement('div');
   body.className = 'element-card-body';
 
-  // US-012: head 移入 body 内部,作为 sticky 滚动锚点 —— body 自身成为独立滚动容器,
-  // 内容超出 max-height: 520px 时 head 停在 body 顶端不滚走
-  body.appendChild(elementHead(b, idx));
-
-  // US-012: 实际编辑内容包在 .element-card-content 内,与 sticky 头部视觉分层
+  // US-015:head 已移出 body(body 不再承担 sticky / 滚动职责),
+  // body 仅作为「编辑区」容器,在 .element-card flex column 中由 flex:1 1 auto 撑开,
+  // 自身 overflow:hidden,不再产生独立滚动条。
+  // US-012 的实际编辑内容包在 .element-card-content 内,与 head 视觉分层
   const content = document.createElement('div');
   content.className = 'element-card-content';
 

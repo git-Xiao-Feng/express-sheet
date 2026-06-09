@@ -55,6 +55,7 @@ type Block struct {
 	Align       string    `json:"align,omitempty"`  // left | center | right
 	Color       string    `json:"color,omitempty"`  // hex like "#000000"
 	BarcodeType string    `json:"barcode_type,omitempty"` // code128 | code39 | ean13
+	LineWidth   float64   `json:"line_width,omitempty"`   // mm;仅 line_h/line_v/rect 使用,与前端 line_width 对齐
 }
 
 // RenderRequest is the JSON body for /api/preview and /api/pdf.

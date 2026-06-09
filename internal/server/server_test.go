@@ -146,6 +146,38 @@ func TestDecodeRenderRequestRejectsLegacyTypeAfterStrip(t *testing.T) {
 	}
 }
 
+// TestDecodeRenderRequestAcceptsLineWidth covers the regression where
+// the frontend sends "line_width" for line_h/line_v/rect elements but
+// the Block struct used to lack the field, causing DisallowUnknownFields
+// to reject the /api/pdf payload with 400.
+func TestDecodeRenderRequestAcceptsLineWidth(t *testing.T) {
+	body := `{
+		"template": {
+			"page": {"width_mm": 100, "height_mm": 100},
+			"font": {"family": "simhei"},
+			"elements": [
+				{"id": "h1", "type": "line_h", "x": 1, "y": 1, "w": 50, "h": 0.5, "line_width": 0.3},
+				{"id": "v1", "type": "line_v", "x": 1, "y": 1, "w": 0.5, "h": 50, "line_width": 0.4},
+				{"id": "r1", "type": "rect",   "x": 5, "y": 5, "w": 10, "h":  8, "line_width": 0.5}
+			]
+		}
+	}`
+	req := httptest.NewRequest("POST", "/api/pdf", strings.NewReader(body))
+	got, err := decodeRenderRequest(req)
+	if err != nil {
+		t.Fatalf("decodeRenderRequest returned error: %v", err)
+	}
+	if len(got.Template.Blocks) != 3 {
+		t.Fatalf("expected 3 blocks, got %d", len(got.Template.Blocks))
+	}
+	want := []float64{0.3, 0.4, 0.5}
+	for i, b := range got.Template.Blocks {
+		if b.LineWidth != want[i] {
+			t.Errorf("block %d (%s) line_width = %v, want %v", i, b.ID, b.LineWidth, want[i])
+		}
+	}
+}
+
 // TestStripLegacyJSONFields exercises the helper directly to lock down the
 // strip semantics. It must remove border / border_color / value_field from
 // every block, and drop the top-level "fields" array (and the one inside

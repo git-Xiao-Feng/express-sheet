@@ -90,6 +90,22 @@
   --col-elements: 320px;
   --col-inspector: 280px;
   --col-preview-min: 360px;
+
+  /* —— 元素卡片固定高度 (US-015) ——
+   * 折叠态全类型共用 --el-card-h-collapsed;
+   * 展开态按 type 分 5 档,值 = head(42) + content padding(22) + 各 type prop-group 总高,
+   * 刚好完整显示编辑区、不裁切内容 —— 各值基于「标签 15 + 2 gap + 输入 28 = 45/项,
+   * 2×2 网格 96,标题 21(15+6 margin-bottom),非首个组多 21(margin+padding+border)」精算
+   * 用 CSS 变量便于将来微调,卡片 height 直接 var(--el-card-h-*) 不被内容 / 邻居 / 父 flex 影响
+   * 注:line_h/line_v / rect / qrcode 编辑区都有「位置·尺寸 + 内容」2 个组(内容组 elementBody 无条件挂上),
+   *    三者高度相同 268px;text_h/text_v 多「文本」组(2×2 网格)= 406px;
+   *    barcode_h/barcode_v 多「条码」组(1 行 col-span-2)= 355px */
+  --el-card-h-collapsed: 44px;
+  --el-card-h-text-h:    406px;   /* text_h / text_v: 3 个 prop-group(位置·尺寸 117 / 内容 87 / 文本 138) */
+  --el-card-h-line-h:    268px;   /* line_h / line_v: 2 个 prop-group(位置·尺寸 117 / 内容 87) */
+  --el-card-h-rect:      268px;   /* rect: 2 个 prop-group(位置·尺寸 117 / 内容 87) */
+  --el-card-h-barcode-h: 355px;   /* barcode_h / barcode_v: 3 个 prop-group(位置·尺寸 117 / 内容 87 / 条码 87) */
+  --el-card-h-qrcode:    268px;   /* qrcode: 2 个 prop-group(位置·尺寸 117 / 内容 87) */
 }
 
 /* =====================================================================
@@ -418,7 +434,7 @@ input[type="checkbox"] {
 }
 /* 「+ 添加元素」按钮 + 元素类型选择浮层的定位包裹层(US-007)
    完整 popover 样式见 US-013,这里只做 position: relative 锚定 */
-.add-element-wrap { position: relative; display: flex; }
+.add-element-wrap { position: relative; display: flex; margin-left: auto; }
 
 /* =====================================================================
  *  元素类型选择浮层 (US-013)
@@ -602,18 +618,38 @@ input[type="checkbox"] {
 .element-empty-icon { font-size: 32px; opacity: 0.4; }
 .element-empty .btn { margin-top: 6px; }
 .element-card {
+  display: flex;
+  flex-direction: column;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--r-lg);
+  /* US-015:卡片高度固定 —— 折叠态共用 44px,展开态按 type 走 5 档 CSS 变量;
+     overflow:hidden 保证「内容超出固定高度时直接裁掉」,不挤压 / 不影响相邻卡片 */
+  height: var(--el-card-h-collapsed);
   overflow: hidden;
+  /* US-015:flex:0 0 auto 防止父级 .element-list 拉伸或压缩卡片(卡片独立固定尺寸) */
+  flex: 0 0 auto;
   transition: border-color var(--d-fast) var(--ease),
-              box-shadow var(--d-fast) var(--ease);
+              box-shadow var(--d-fast) var(--ease),
+              height var(--d-fast) var(--ease);
 }
 .element-card:hover  { border-color: var(--c-border-strong); }
 .element-card.active {
   border-color: var(--c-primary);
   box-shadow: 0 0 0 3px var(--c-primary-ring);
 }
+
+/* US-015:展开态按 type 分 5 档固定高度 —— 卡片不再「自适应内容」,
+   而是按元素类型预定义 5 个 height 档位,内容多于固定高度由 overflow:hidden 裁切
+   (实际不存在:每档变量都按 prop-group 总高 + head 算过,内容能完整装下) */
+.element-card.open.type-text_h,
+.element-card.open.type-text_v    { height: var(--el-card-h-text-h); }
+.element-card.open.type-line_h,
+.element-card.open.type-line_v    { height: var(--el-card-h-line-h); }
+.element-card.open.type-rect      { height: var(--el-card-h-rect); }
+.element-card.open.type-barcode_h,
+.element-card.open.type-barcode_v { height: var(--el-card-h-barcode-h); }
+.element-card.open.type-qrcode    { height: var(--el-card-h-qrcode); }
 
 .element-card-head {
   display: flex; align-items: center; gap: 6px;
@@ -623,13 +659,9 @@ input[type="checkbox"] {
   cursor: pointer;
   user-select: none;
   transition: background var(--d-fast) var(--ease);
-  /* US-012: 头部移入 body 内部后,sticky 到 body 顶端;
-     body 是 overflow-y: auto 的滚动容器,head 在 body 内滚到顶时停住 */
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  /* 内容滚动时头部不透明,防止下方 prop 控件透出来 */
-  box-shadow: 0 1px 0 var(--c-border);
+  /* US-015:head 移回 .element-card 直接子节点,在 flex column 中占自然高度,
+     不再是 body 内的 sticky 锚点(position:sticky / top / z-index / box-shadow 全删) */
+  flex: 0 0 auto;
 }
 .element-card.open .element-card-head { border-bottom-color: var(--c-border); }
 .element-card-head:hover { background: var(--c-surface-3); }
@@ -706,38 +738,24 @@ input[type="checkbox"] {
 .type-qrcode    { background: var(--c-type-qrcode-bg);     color: var(--c-type-qrcode); }
 
 .element-card-body {
-  /* US-012: 编辑区滚动优化 —— body 自身成为独立滚动容器,
-     head 移入 body 内部作 sticky 锚点(见下 .element-card-head) */
-  max-height: 520px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: block;
-  /* 滚动条预留,避免内容跳动(scrollbar-gutter 在 Firefox/Chrome 都支持) */
-  scrollbar-gutter: stable;
-  /* 让内部子元素的 sticky 计算有一个稳定的层叠上下文 */
-  isolation: isolate;
+  /* US-015:body 不再是滚动容器 —— flex:1 1 auto 填满 .element-card 剩余空间,
+     overflow:hidden 配合父 .element-card 的 overflow:hidden,确保内容超长时只被裁掉
+     (实际不会发生:5 档卡片高度都按 prop-group 总高 + head 算过,内容能完整装下)。
+     旧的 overflow-y:auto / scrollbar-gutter / isolation:isolate 全部删除,
+     因为整列滚动由父级 .panel-body 承担,卡片自身不滚。 */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 /* 元素折叠(非 .open)时:仅隐藏编辑区(.element-card-content),保留 head(功能区)可见。
-   修复前:body 有 display: none 兜底,head 也在 body 内被一起隐藏,卡片缩成一条线。
-   修复后:head 永远显示,只收起编辑区内容,最小态就是「功能区」一行(参考 US-012 配套图) */
+   折叠态卡片高度 = --el-card-h-collapsed(44px),head 撑满,body 因 flex:1 1 auto 拿到 0 高度。
+   双重保险再加 display:none 兜底,防止某些极端 prop-group 数量场景下 body 露出边角。 */
 .element-card:not(.open) .element-card-content { display: none; }
-.element-card:not(.open) .element-card-body {
-  max-height: none;
-  overflow: visible;
-  /* 折叠态不需要 scrollbar-gutter 预留空间 —— 内容已隐藏,滚动条也无意义 */
-  scrollbar-gutter: auto;
-}
-/* US-012: 编辑区滚动条样式 —— 窄而精致,与 panel-body 风格一致 */
-.element-card-body::-webkit-scrollbar { width: 6px; height: 6px; }
-.element-card-body::-webkit-scrollbar-track { background: transparent; }
-.element-card-body::-webkit-scrollbar-thumb {
-  background: var(--c-border-strong);
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background-clip: padding-box;
-}
-.element-card-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: padding-box; }
-/* US-012: 内容包裹层 —— 实际 prop 区域,与 sticky 头部视觉分层 */
+
+/* US-012 时期 .element-card-body 的 ::-webkit-scrollbar 系列样式已删除:
+   卡片自身不再产生独立滚动条,内容若超出固定高度由父级 .panel-body 整列滚动展示 */
+
+/* US-012: 内容包裹层 —— 实际 prop 区域,head 之下 */
 .element-card-content {
   padding: 10px 12px 12px;
 }

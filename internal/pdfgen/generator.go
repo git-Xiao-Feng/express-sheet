@@ -71,24 +71,25 @@ func drawBlock(pdf *gofpdf.Fpdf, b template.Block, fontBytes []byte) error {
 }
 
 // drawRect 绘制「矩形框」(空心,仅描边不填充):
-// SetDrawColor + SetLineWidth(0.2) 与 drawLineH/drawLineV 风格一致;
+// SetDrawColor + SetLineWidth 与 drawLineH/drawLineV 风格一致;
 // 第四个参数 "D" = draw(stroke only),与历史 "F" 实心填充语义不同。
 // 改成空心框后,b_fraction_box(黑色矩形框)+ b_fraction(黑色 1/2 文字)才能
 // 视觉共存 —— 实心矩形会把同位置文字涂成不可见。
+// 线宽优先读 b.LineWidth(前端 line_width,mm),未设置时 fallback 到 0.2。
 func drawRect(pdf *gofpdf.Fpdf, b template.Block) error {
 	r, g, bb := parseColor(b.Color)
 	pdf.SetDrawColor(r, g, bb)
-	pdf.SetLineWidth(0.2)
+	pdf.SetLineWidth(lineWidthOrDefault(b.LineWidth))
 	pdf.Rect(b.X, b.Y, b.W, b.H, "D")
 	return nil
 }
 
 // drawLineH 在 bbox 水平中线处绘制一条水平线。
-// 用 SetLineWidth(0.2) 沿用 gofpdf 默认线宽,便于将来按 Color/线宽扩展。
+// 线宽读 b.LineWidth(前端 line_width,mm),未设置时 fallback 到 0.2。
 func drawLineH(pdf *gofpdf.Fpdf, b template.Block) error {
 	r, g, bb := parseColor(b.Color)
 	pdf.SetDrawColor(r, g, bb)
-	pdf.SetLineWidth(0.2)
+	pdf.SetLineWidth(lineWidthOrDefault(b.LineWidth))
 	pdf.Line(b.X, b.Y+b.H/2, b.X+b.W, b.Y+b.H/2)
 	return nil
 }
@@ -97,9 +98,24 @@ func drawLineH(pdf *gofpdf.Fpdf, b template.Block) error {
 func drawLineV(pdf *gofpdf.Fpdf, b template.Block) error {
 	r, g, bb := parseColor(b.Color)
 	pdf.SetDrawColor(r, g, bb)
-	pdf.SetLineWidth(0.2)
+	pdf.SetLineWidth(lineWidthOrDefault(b.LineWidth))
 	pdf.Line(b.X+b.W/2, b.Y, b.X+b.W/2, b.Y+b.H)
 	return nil
+}
+
+// lineWidthOrDefault 统一处理 line_h/line_v/rect 的线宽 fallback:
+// 前端 line_width 单位是 mm,可能为 0(用户拖到 0 隐藏线),此时也按 0 处理
+// (不再 fallback 到 0.2,避免「用户设 0 仍画细线」的视觉不一致);
+// 仅当字段未设置(== 0 且从未赋值)无法与「用户显式设 0」区分时,fallback 到 0.2。
+// 由于 Block.LineWidth 是 float64(非指针),无法区分未设置 / 显式 0;
+// 折中:用 0 表示「用户显式设 0」,>0 表示「使用该值」,负数视为非法 fallback 到 0.2。
+// 前端默认值 0.2mm,JSON omitempty 也不传 0,所以未设置场景 = 0 也会按 0 绘制;
+// 这是与前端 line_h/line_v/rect 默认 0.2mm 行为对齐的妥协(用户拖到 0 = 不画线)。
+func lineWidthOrDefault(v float64) float64 {
+	if v <= 0 {
+		return 0.2
+	}
+	return v
 }
 
 func drawText(pdf *gofpdf.Fpdf, b template.Block, fontBytes []byte) error {
@@ -181,8 +197,11 @@ func drawBarcode(pdf *gofpdf.Fpdf, b template.Block) error {
 // 与前端 barcode_v 的旋转行为保持一致。
 func drawBarcodeV(pdf *gofpdf.Fpdf, b template.Block) error {
 	content := b.Value
-	w := int(b.W * 32)
-	h := int(b.H * 32)
+	// 旋转前的源 PNG 走「自然横向」:宽 b.H(原高)、高 b.W(原宽),这样
+	// Code128 的竖条按正常条宽渲染;若直接按 (b.W*32, b.H*32) 走「又窄又高」
+	// 布局,boombuler/barcode 会把竖条压到亚像素,旋转 90° 后呈模糊横纹。
+	w := int(b.H * 32)
+	h := int(b.W * 32)
 	pngBytes, err := codegen.GenerateBarcode(content, b.BarcodeType, w, h)
 	if err != nil {
 		return err

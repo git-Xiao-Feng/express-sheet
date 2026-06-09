@@ -280,6 +280,42 @@
         "web/style.css"
       ],
       "passes": true
+    },
+    {
+      "id": "US-015",
+      "title": "元素列表改为整列滚动,卡片按类型使用不可滚动的固定高度",
+      "description": "作为开发者,我需要重构元素区域的滚动行为与卡片高度策略:整个 #elementsList 走父级 .panel-body 统一滚动(可下滑),元素卡片本身不再独立滚动;卡片折叠态 8 种类型共享同一固定高度,展开态按元素 type 使用 5 档不同的固定高度(text_h/text_v, line_h/line_v, rect, barcode_h/barcode_v, qrcode),所有高度用 CSS 变量定义,head 移回 .element-card 直接子节点,body 仅承载编辑内容。",
+      "priority": 15,
+      "acceptance": [
+        ".element-card{display:flex;flex-direction:column;flex:0 0 auto;height:var(--el-card-h-collapsed);overflow:hidden}",
+        "新增 CSS 变量 --el-card-h-collapsed(44px)与 5 档展开高度(text-h 230 / line-h 130 / rect 140 / barcode-h 210 / qrcode 180)",
+        ".element-card.open.type-text_h / .type-text_v 走 var(--el-card-h-text-h)",
+        ".element-card.open.type-line_h / .type-line_v 走 var(--el-card-h-line-h)",
+        ".element-card.open.type-rect 走 var(--el-card-h-rect)",
+        ".element-card.open.type-barcode_h / .type-barcode_v 走 var(--el-card-h-barcode-h)",
+        ".element-card.open.type-qrcode 走 var(--el-card-h-qrcode)",
+        ".element-card-head 不再有 position:sticky/top/z-index/box-shadow,是 .element-card 的直接子节点(flex:0 0 auto)",
+        ".element-card-body 不再是 overflow-y:auto / scrollbar-gutter / isolation:isolate,改为 flex:1 1 auto;min-height:0;overflow:hidden,不再出现自身滚动条",
+        ".element-card-body::-webkit-scrollbar 等独立滚动条样式已删除",
+        "renderElements 给每张卡片加 .type-<type> 类,作为展开高度 CSS 钩子",
+        "elementBody 不再 appendChild(elementHead),只构建 .element-card-body 容器与 .element-card-content 编辑区",
+        "elementHead 改为在 renderElements 里 card.appendChild 与 card.appendChild(elementBody) 顺序挂在 card 上",
+        "整列滚动:.panel-body(overflow:auto)+ .element-list(flex column, gap:8px)不被卡片内部滚动容器影响,15 个元素时可整列下滑查看",
+        "卡片高度不受其他元素影响:打开 / 折叠其他卡片、增减元素、修改内容,本卡片高度固定不变",
+        "添加 8 种不同类型各 1 个、共 8 个元素,所有展开卡片在浏览器中实测高度与 5 档变量 ±1px 一致",
+        "折叠态 8 张卡片在浏览器中实测高度与 --el-card-h-collapsed(44px) ±1px 一致",
+        "input focusin → 滚到可视区的行为保留(panel-body 是滚动祖先,卡片整体被滚到视口)",
+        "grep element-card-body web/style.css 仅命中 layout 定义与 :not(.open) .element-card-content 子选择器,无 overflow-y: auto 残留",
+        "go vet ./... 退出码 0",
+        "go build . 退出码 0",
+        "node --check web/app.js 退出码 0"
+      ],
+      "files": [
+        "web/style.css",
+        "web/app.js",
+        "element-ui-redesign-plan.json"
+      ],
+      "passes": false
     }
   ]
 }
