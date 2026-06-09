@@ -11,12 +11,12 @@ const STORAGE_KEY = 'express-sheet-draft-v1';
 // 元素类型元数据 —— 8 种类型的 label / badge / icon(24x24 SVG)/ defaultSize / defaults
 // 注意:
 //   - type 值与后端 8 个类型常量一一对应(text_h / text_v / line_h / line_v / rect / barcode_h / barcode_v / qrcode)
-//   - badge 复用现有 type-* CSS 类(US-014 才新增 text_v / line_h / line_v / barcode_v 的独立颜色变量)
+//   - badge 用 8 种 type 专属 .type-* CSS 类(US-014),text_v/line_v/barcode_v 有独立颜色变体
 //   - defaults 包含 addElement(type) 创建新元素时需要的全部默认属性(不含 id,id 由 addElement 生成)
 const ELEMENT_TYPE_META = {
   text_h: {
     label: '横排文字',
-    badge: 'type-text',
+    badge: 'type-text_h',
     icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<line x1="3" y1="6"  x2="21" y2="6"/>'
         + '<line x1="3" y1="12" x2="21" y2="12"/>'
@@ -33,7 +33,7 @@ const ELEMENT_TYPE_META = {
   },
   text_v: {
     label: '竖排文字',
-    badge: 'type-text',
+    badge: 'type-text_v',
     icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<line x1="6"  y1="3" x2="6"  y2="21"/>'
         + '<line x1="12" y1="3" x2="12" y2="21"/>'
@@ -50,7 +50,7 @@ const ELEMENT_TYPE_META = {
   },
   line_h: {
     label: '水平线',
-    badge: 'type-line',
+    badge: 'type-line_h',
     icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<line x1="3" y1="12" x2="21" y2="12"/>'
         + '</svg>',
@@ -64,7 +64,7 @@ const ELEMENT_TYPE_META = {
   },
   line_v: {
     label: '垂直线',
-    badge: 'type-line',
+    badge: 'type-line_v',
     icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<line x1="12" y1="3" x2="12" y2="21"/>'
         + '</svg>',
@@ -92,7 +92,7 @@ const ELEMENT_TYPE_META = {
   },
   barcode_h: {
     label: '横向条形码',
-    badge: 'type-barcode',
+    badge: 'type-barcode_h',
     icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">'
         + '<rect x="3"  y="4" width="2" height="16"/>'
         + '<rect x="6"  y="4" width="1" height="16"/>'
@@ -112,7 +112,7 @@ const ELEMENT_TYPE_META = {
   },
   barcode_v: {
     label: '竖向条形码',
-    badge: 'type-barcode',
+    badge: 'type-barcode_v',
     icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">'
         + '<rect x="4" y="3"  width="16" height="2"/>'
         + '<rect x="4" y="6"  width="16" height="1"/>'

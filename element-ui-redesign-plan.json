@@ -279,7 +279,7 @@
       "files": [
         "web/style.css"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }

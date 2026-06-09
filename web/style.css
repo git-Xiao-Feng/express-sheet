@@ -32,11 +32,23 @@
   --c-danger:        #ef4444;
   --c-danger-soft:   #fef2f2;
 
-  /* —— 类型:元素徽章 —— */
+  /* —— 类型:元素徽章 ——
+   * US-014:8 种元素类型每个有独立 .type-* 颜色变体
+   *  - text_h / text_v 共享蓝色系但 text_v 走 teal 浅变体(区分横/竖)
+   *  - line_h / line_v 共享 slate 系(同一灰度,语义都是「线」)
+   *  - rect 橙色、barcode_h 紫色、barcode_v 走 fuchsia(区分横/竖)
+   *  - qrcode 青色
+   * 旧 class 名(.type-text / .type-barcode / .type-line)保留为别名,
+   * 防止 US-006 之前的代码或外部引用失效
+   */
   --c-type-text:     #2563eb;
   --c-type-text-bg:  #dbeafe;
+  --c-type-text-v:   #0d9488;
+  --c-type-text-v-bg:#ccfbf1;
   --c-type-barcode:  #7c3aed;
   --c-type-barcode-bg:#ede9fe;
+  --c-type-barcode-v:#c026d3;
+  --c-type-barcode-v-bg:#fae8ff;
   --c-type-qrcode:   #0891b2;
   --c-type-qrcode-bg:#cffafe;
   --c-type-line:     #475569;
@@ -672,11 +684,24 @@ input[type="checkbox"] {
   margin-left: 4px;
   flex: 0 0 auto;
 }
-.type-text    { background: var(--c-type-text-bg);    color: var(--c-type-text); }
-.type-barcode { background: var(--c-type-barcode-bg); color: var(--c-type-barcode); }
-.type-qrcode  { background: var(--c-type-qrcode-bg);  color: var(--c-type-qrcode); }
-.type-line    { background: var(--c-type-line-bg);    color: var(--c-type-line); }
-.type-rect    { background: var(--c-type-rect-bg);    color: var(--c-type-rect); }
+/* US-014:8 种元素类型的 .type-* 徽章颜色
+ * - 横排文字 / 竖排文字 / 横/竖线条 / 矩形 / 横/竖条形码 / 二维码 各自的 .type-* 类
+ * - 旧 .type-text / .type-barcode / .type-line 是别名,US-006 之前用过,保留为兼容
+ * - text_v 走 teal(#0d9488/#ccfbf1),barcode_v 走 fuchsia(#c026d3/#fae8ff),
+ *   与 text_h 蓝 / barcode_h 紫 形成「同语义不同朝向」的色彩区分
+ * - line_h / line_v 共享 slate 系(都是「线」视觉,不需要再细分)
+ */
+.type-text      { background: var(--c-type-text-bg);       color: var(--c-type-text); }
+.type-text_h    { background: var(--c-type-text-bg);       color: var(--c-type-text); }
+.type-text_v    { background: var(--c-type-text-v-bg);     color: var(--c-type-text-v); }
+.type-line      { background: var(--c-type-line-bg);       color: var(--c-type-line); }
+.type-line_h    { background: var(--c-type-line-bg);       color: var(--c-type-line); }
+.type-line_v    { background: var(--c-type-line-bg);       color: var(--c-type-line); }
+.type-rect      { background: var(--c-type-rect-bg);       color: var(--c-type-rect); }
+.type-barcode   { background: var(--c-type-barcode-bg);    color: var(--c-type-barcode); }
+.type-barcode_h { background: var(--c-type-barcode-bg);    color: var(--c-type-barcode); }
+.type-barcode_v { background: var(--c-type-barcode-v-bg);  color: var(--c-type-barcode-v); }
+.type-qrcode    { background: var(--c-type-qrcode-bg);     color: var(--c-type-qrcode); }
 
 .element-card-body {
   /* US-012: 编辑区滚动优化 —— body 自身成为独立滚动容器,
