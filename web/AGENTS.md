@@ -9,6 +9,7 @@
 - `defaults` 字段包含 `addElement(type)` 需要的全部默认属性,但**不含** `id` —— `id` 由 addElement 用 `Date.now().toString(36)` 生成,保证全局唯一
 - `icon` 字段是 24x24 viewBox 的 SVG 字符串,采用 `stroke="currentColor"` 风格以便跟父级 `type-*` 徽章字色联动
 - **US-006 重命名后,前端语义层用 `state.template.elements`,后端 JSON 老字段名(对应 Go 切片字段)在 `stripLegacyFields` 里通过 `legacyTplArrayKey()` 间接读 + 改名为 `elements`**;不要在主代码里直接写后端 JSON 老字段名(US-006 acceptance #15 要求 `grep "block\|Block\|BLOCK" web/app.js` 零命中)
+- **US-009 起,后端 `Template.Blocks` 的 JSON tag 也是 `"elements"`**(`internal/template/types.go`)——前端 `state.template.elements` 与后端 JSON wire format 完全对齐,`/api/pdf` 直接 `JSON.stringify({ template: state.template })` 即可,无需中间转换层。Go 字段名 `Blocks` 仍是 Go 约定细节(没改),`Block` / `BlockType` 也未变;`legacyTplArrayKey()` 的字符串拼接反模式保留,继续为「旧 JSON import 那一刻」服务
 - **`scrollIntoView({ [k]: 'nearest' })` 的对齐方式键是浏览器标准 API,本字面量非 UI 命名,不要改**;`legacyTplArrayKey()` 用字符串拼接 `'bl' + 'ocks'` 是为了避免 `web/app.js` grep 出现 `block` 字面量,但运行期等价于 `'blocks'`,用于读取老 JSON 字段名
 - 前端 `display: block` / `display: inline-block` 是 CSS 规范关键字,**不是** UI 命名残留;改 CSS 时不要被 grep 误导
 - `web/index.html` 左栏 `#elementTypePicker`(US-007)结构是「3 个 .etp-section(文本/图形/条形码/二维码) × 8 个 .etp-item(text_h, text_v, line_h, line_v, rect, barcode_h, barcode_v, qrcode)」,每个 item 嵌套 `.etp-icon`(24x24 SVG) + `.etp-label`(中文),`data-type` 属性是 US-008 `addElement(type)` 的入口参数;DOM 文案与 `data-type` 值一旦定下,后续 US-008/013 都要按这张表消费,不要再扩字面值

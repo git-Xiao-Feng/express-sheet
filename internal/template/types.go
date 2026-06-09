@@ -2,10 +2,15 @@
 package template
 
 // Template is the root of a waybill template JSON.
+//
+// JSON 字段名 "elements" 与前端 state.template.elements 对齐(US-006 引入,
+// US-009 验证 e2e 流程时发现后端仍用 "blocks" 会导致 DisallowUnknownFields 直接 400,
+// 因此把 JSON tag 改为 "elements" 与前端 canonical 字段名一致;Go 字段名 Blocks 保留
+// 以避免大范围重命名,且 BlockType / Block 字段也未变)。
 type Template struct {
 	Page   Page    `json:"page"`
 	Font   Font    `json:"font"`
-	Blocks []Block `json:"blocks"`
+	Blocks []Block `json:"elements"`
 }
 
 // Page describes the physical page size in millimetres.

@@ -525,15 +525,7 @@ function elementBody(b, idx) {
   );
   g1.appendChild(grid1);
 
-  const g2 = propGroup('类型 · 边框');
-  const grid2 = propGrid();
-  grid2.append(
-    selectProp('类型', b.type, Object.entries(ELEMENT_TYPE_META).map(([v, m]) => ({ value: v, label: m.label })),
-      (v) => { b.type = v; renderElements(); renderInspector(); schedulePreview(); schedulePersist(); }),
-    switchProp('边框', !!b.border, (v) => { b.border = v; renderInspector(); schedulePreview(); schedulePersist(); }),
-  );
-  g2.appendChild(grid2);
-
+  // US-009: 元素类型在创建后不可更改 —— 不再暴露「类型」下拉与「边框」开关
   const g3 = propGroup('内容');
   const grid3 = propGrid();
   const valueProp = textProp('内容', b.value || '',
@@ -542,9 +534,10 @@ function elementBody(b, idx) {
   grid3.appendChild(valueProp);
   g3.appendChild(grid3);
 
-  body.append(g1, g2, g3);
+  body.append(g1, g3);
 
-  if (b.type === 'text') {
+  // US-009: 类型固定为创建时的 8 种之一,文本/条码类子面板按新 type 名匹配
+  if (b.type === 'text_h' || b.type === 'text_v') {
     const g4 = propGroup('文本');
     const grid4 = propGrid();
     grid4.append(
@@ -558,7 +551,8 @@ function elementBody(b, idx) {
     body.appendChild(g4);
   }
 
-  if (b.type === 'barcode') {
+  // US-009: 类型固定为创建时的 8 种之一,文本/条码类子面板按新 type 名匹配
+  if (b.type === 'barcode_h' || b.type === 'barcode_v') {
     const g5 = propGroup('条码');
     const grid5 = propGrid();
     grid5.append(
@@ -1286,10 +1280,7 @@ function renderInspector() {
   idField.input.classList.add('insp-id-input');
   s1.root.appendChild(idField.wrap);
 
-  const typeField = mkInspField('类型', 'select', b.type,
-    Object.entries(ELEMENT_TYPE_META).map(([v, m]) => ({ value: v, label: m.label })),
-    (v) => { b.type = v; renderElements(); renderInspector(); drawPreview(); schedulePersist(); });
-  s1.root.appendChild(typeField.wrap);
+  // US-009: 「基本」section 不再含「类型」select —— 元素类型在创建后不可更改
   dom.inspBody.appendChild(s1.root);
 
   // ——— 位置 · 尺寸 ———
@@ -1313,15 +1304,12 @@ function renderInspector() {
   valueField.wrap.classList.add('col-span-2');
   s3.root.appendChild(valueField.wrap);
 
-  // 边框开关
-  const borderSwitch = mkInspSwitch('边框', !!b.border, (v) => {
-    b.border = v; renderElements(); drawPreview(); schedulePersist();
-  });
-  s3.root.appendChild(borderSwitch);
+  // US-009: 「内容」section 不再含「边框」switch —— 边框需求由 line_h/line_v/rect 元素替代
   dom.inspBody.appendChild(s3.root);
 
   // ——— 类型特定 ———
-  if (b.type === 'text') {
+  // US-009: 类型固定为创建时的 8 种之一,文本/条码类子面板按新 type 名匹配
+  if (b.type === 'text_h' || b.type === 'text_v') {
     const s = mkInspSection('文本');
     const g = document.createElement('div');
     g.className = 'insp-grid';
@@ -1334,7 +1322,7 @@ function renderInspector() {
     s.root.appendChild(g);
     dom.inspBody.appendChild(s.root);
   }
-  if (b.type === 'barcode') {
+  if (b.type === 'barcode_h' || b.type === 'barcode_v') {
     const s = mkInspSection('条码');
     const g = document.createElement('div');
     g.className = 'insp-grid';

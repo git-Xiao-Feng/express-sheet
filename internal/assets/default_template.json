@@ -1,7 +1,7 @@
 {
   "page": { "width_mm": 100, "height_mm": 150 },
   "font": { "family": "simhei" },
-  "blocks": [
+  "elements": [
     {
       "id": "b_title",
       "type": "text_h",

@@ -75,7 +75,7 @@ func TestDecodeRenderRequestStripsLegacyFields(t *testing.T) {
 		"template": {
 			"page": {"width_mm": 100, "height_mm": 100},
 			"font": {"family": "simhei"},
-			"blocks": [
+			"elements": [
 				{
 					"id": "b1", "type": "text_h", "x": 1, "y": 1, "w": 10, "h": 10,
 					"value": "hello", "color": "#000000",
@@ -108,7 +108,7 @@ func TestDecodeRenderRequestRejectsUnknownField(t *testing.T) {
 	body := `{
 		"template": {
 			"page": {"width_mm": 100, "height_mm": 100},
-			"blocks": [
+			"elements": [
 				{"id": "b1", "type": "text_h", "x": 1, "y": 1, "w": 10, "h": 10}
 			]
 		},
@@ -131,7 +131,7 @@ func TestDecodeRenderRequestRejectsLegacyTypeAfterStrip(t *testing.T) {
 	body := `{
 		"template": {
 			"page": {"width_mm": 100, "height_mm": 100},
-			"blocks": [
+			"elements": [
 				{"id": "b1", "type": "text", "x": 1, "y": 1, "w": 10, "h": 10, "value": "hi"}
 			]
 		}
@@ -154,8 +154,8 @@ func TestStripLegacyJSONFields(t *testing.T) {
 	input := map[string]any{
 		"fields": []any{map[string]any{"key": "name"}},
 		"template": map[string]any{
-			"fields": []any{map[string]any{"key": "old"}},
-			"blocks": []any{
+			"fields":   []any{map[string]any{"key": "old"}},
+			"elements": []any{
 				map[string]any{
 					"id":           "b1",
 					"type":         "text_h",
@@ -178,9 +178,9 @@ func TestStripLegacyJSONFields(t *testing.T) {
 	if _, ok := tpl["fields"]; ok {
 		t.Error("template.fields was not stripped")
 	}
-	blocks, ok := tpl["blocks"].([]any)
+	blocks, ok := tpl["elements"].([]any)
 	if !ok || len(blocks) != 1 {
-		t.Fatalf("expected one block, got %v", tpl["blocks"])
+		t.Fatalf("expected one block, got %v", tpl["elements"])
 	}
 	block := blocks[0].(map[string]any)
 	for _, k := range []string{"border", "border_color", "value_field"} {
@@ -266,12 +266,12 @@ func TestDefaultTemplateFractionHasNoBorder(t *testing.T) {
 		// 处理器直接返回 Template,根就是 template 内容
 		tpl = raw
 	}
-	blocks, ok := tpl["blocks"].([]any)
+	elements, ok := tpl["elements"].([]any)
 	if !ok {
-		t.Fatalf("blocks field missing or not array: %T", tpl["blocks"])
+		t.Fatalf("elements field missing or not array: %T", tpl["elements"])
 	}
 	var fraction map[string]any
-	for _, b := range blocks {
+	for _, b := range elements {
 		bm := b.(map[string]any)
 		if bm["id"] == "b_fraction" {
 			fraction = bm
