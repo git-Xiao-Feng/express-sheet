@@ -709,13 +709,22 @@ input[type="checkbox"] {
   max-height: 520px;
   overflow-y: auto;
   overflow-x: hidden;
-  display: none;
+  display: block;
   /* 滚动条预留,避免内容跳动(scrollbar-gutter 在 Firefox/Chrome 都支持) */
   scrollbar-gutter: stable;
   /* 让内部子元素的 sticky 计算有一个稳定的层叠上下文 */
   isolation: isolate;
 }
-.element-card.open .element-card-body { display: block; }
+/* 元素折叠(非 .open)时:仅隐藏编辑区(.element-card-content),保留 head(功能区)可见。
+   修复前:body 有 display: none 兜底,head 也在 body 内被一起隐藏,卡片缩成一条线。
+   修复后:head 永远显示,只收起编辑区内容,最小态就是「功能区」一行(参考 US-012 配套图) */
+.element-card:not(.open) .element-card-content { display: none; }
+.element-card:not(.open) .element-card-body {
+  max-height: none;
+  overflow: visible;
+  /* 折叠态不需要 scrollbar-gutter 预留空间 —— 内容已隐藏,滚动条也无意义 */
+  scrollbar-gutter: auto;
+}
 /* US-012: 编辑区滚动条样式 —— 窄而精致,与 panel-body 风格一致 */
 .element-card-body::-webkit-scrollbar { width: 6px; height: 6px; }
 .element-card-body::-webkit-scrollbar-track { background: transparent; }
