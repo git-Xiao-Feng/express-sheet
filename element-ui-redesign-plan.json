@@ -258,7 +258,7 @@
       "files": [
         "web/style.css"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-014",

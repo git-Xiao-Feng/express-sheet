@@ -407,6 +407,119 @@ input[type="checkbox"] {
 /* 「+ 添加元素」按钮 + 元素类型选择浮层的定位包裹层(US-007)
    完整 popover 样式见 US-013,这里只做 position: relative 锚定 */
 .add-element-wrap { position: relative; display: flex; }
+
+/* =====================================================================
+ *  元素类型选择浮层 (US-013)
+ *  触发按钮是 #btnAddElement,与 popover 同级放在 .add-element-wrap;
+ *  wrap 自带 position: relative,popover 走 absolute 自然锚定按钮下方
+ * ===================================================================== */
+.element-type-picker {
+  position: absolute;
+  top: calc(100% + 6px);          /* 按钮底边下 6px,与 .ps-preset-menu 节奏一致 */
+  right: 0;                       /* 右对齐,与触发按钮右侧贴齐 */
+  min-width: 240px;               /* > 240 时 grid 走 3 列,< 240 走 2 列 */
+  z-index: 50;                    /* 与 .ps-preset-menu 同级,避免与 modal 冲突 */
+  padding: 12px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-xl);     /* 圆角 12 = --r-xl */
+  box-shadow: var(--sh-4);        /* 阴影 4 */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: etpIn var(--d-mid) var(--ease);
+  transform-origin: top right;
+}
+.element-type-picker[hidden] { display: none; }
+@keyframes etpIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* —— 分类区块 —— */
+.etp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* 3 个分类区块间用 1px 分割线(在非首个 section 的顶端划线);
+   用 :not(:first-child) 选择器,避免空 section 还在顶部多一条线 */
+.etp-section + .etp-section {
+  padding-top: 12px;
+  border-top: 1px solid var(--c-border);
+}
+
+.etp-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-text-3);
+  padding: 0 2px;
+}
+
+/* —— 3 列 grid(8 种类型按分类放入 3 个 grid:2/3/3) —— */
+.etp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+/* 容器宽 < 240 时 grid 改 2 列 */
+@media (max-width: 240px) {
+  .etp-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* —— 类型选项 —— */
+.etp-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);     /* 圆角 8 = --r-lg */
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--d-fast) var(--ease),
+              border-color var(--d-fast) var(--ease),
+              color var(--d-fast) var(--ease),
+              transform var(--d-fast) var(--ease);
+}
+.etp-item:hover {
+  background: var(--c-primary-soft);
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+}
+.etp-item:active { transform: scale(0.96); }
+.etp-item:focus-visible {
+  outline: none;
+  border-color: var(--c-primary);
+  box-shadow: var(--sh-focus);
+}
+
+/* —— 24x24 SVG 容器 —— */
+.etp-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--c-primary);        /* 蓝色描边,跟 type-* 徽章走同色系 */
+}
+.etp-icon svg { display: block; }
+
+/* —— 中文标签(11px) —— */
+.etp-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--c-text-2);
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.etp-item:hover .etp-label { color: var(--c-primary); }
 .panel-title { display: flex; align-items: center; gap: 8px; }
 .panel-title h2 { font-size: var(--fs-xl); margin: 0; font-weight: 600; color: var(--c-text); }
 .panel-count {
