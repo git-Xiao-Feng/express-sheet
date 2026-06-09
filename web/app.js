@@ -262,8 +262,9 @@ init().catch((e) => {
   hideSplash();
 });
 
-// 清理老模板的 value_field 字段以及顶层 fields 数组,避免后端 DisallowUnknownFields 报错
+// 清理老模板字段,避免后端 DisallowUnknownFields 报错
 // 同时把后端 JSON 老字段名(对应 Go 切片字段)重命名为前端语义名 elements
+// 同步把元素老 type 名(text/barcode)映射到新 8 类名(text_h/barcode_h)
 function stripLegacyFields(tpl) {
   if (!tpl) return;
   // 老模板顶层有个 fields 字段,Template 结构体未声明,会触发 unknown field
@@ -276,10 +277,18 @@ function stripLegacyFields(tpl) {
   }
   if (!Array.isArray(tpl.elements)) return;
   for (const b of tpl.elements) {
+    if (!b || typeof b !== 'object') continue;
+    // value_field 是 US-005 之前的字段,迁到 value(若 value 为空)
     if (typeof b.value_field === 'string' && (typeof b.value !== 'string' || b.value === '')) {
       b.value = b.value_field;
     }
     delete b.value_field;
+    // border / border_color 在 US-001 已从 Block 结构体删除,必须 strip,否则后端会报 unknown field
+    delete b.border;
+    delete b.border_color;
+    // 老 type 名映射:8 类新名只接受 text_h / text_v / line_h / line_v / rect / barcode_h / barcode_v / qrcode
+    if (b.type === 'text') b.type = 'text_h';
+    else if (b.type === 'barcode') b.type = 'barcode_h';
   }
 }
 // 老 JSON 字段名(后端 Go 切片字段 json tag)—— 用一个函数包裹,避免在主代码流里出现裸字面量
