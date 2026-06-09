@@ -237,7 +237,7 @@
         "web/style.css",
         "web/app.js"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-013",

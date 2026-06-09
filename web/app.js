@@ -466,7 +466,7 @@ function renderElements() {
     card.className = 'element-card' + (state.openElement.has(b.id) ? ' open' : '')
                                  + (state.selectedElement === b.id ? ' active' : '');
     card.dataset.elementId = b.id;
-    card.appendChild(elementHead(b, idx));
+    // US-012: head 已移入 elementBody 内部作为 sticky 锚点,card 只挂 body
     card.appendChild(elementBody(b, idx));
     dom.elementsList.appendChild(card);
   });
@@ -524,6 +524,14 @@ function elementBody(b, idx) {
   const body = document.createElement('div');
   body.className = 'element-card-body';
 
+  // US-012: head 移入 body 内部,作为 sticky 滚动锚点 —— body 自身成为独立滚动容器,
+  // 内容超出 max-height: 520px 时 head 停在 body 顶端不滚走
+  body.appendChild(elementHead(b, idx));
+
+  // US-012: 实际编辑内容包在 .element-card-content 内,与 sticky 头部视觉分层
+  const content = document.createElement('div');
+  content.className = 'element-card-content';
+
   const g1 = propGroup('位置 · 尺寸');
   const grid1 = propGrid();
   grid1.append(
@@ -533,6 +541,7 @@ function elementBody(b, idx) {
     numProp('高 (mm)', b.h, 0.1, 500, (v) => { b.h = v; updatePos(b); renderInspector(); schedulePreview(); schedulePersist(); }),
   );
   g1.appendChild(grid1);
+  content.appendChild(g1);
 
   // US-009: 元素类型在创建后不可更改 —— 不再暴露「类型」下拉与「边框」开关
   const g3 = propGroup('内容');
@@ -542,8 +551,7 @@ function elementBody(b, idx) {
   valueProp.classList.add('col-span-2');
   grid3.appendChild(valueProp);
   g3.appendChild(grid3);
-
-  body.append(g1, g3);
+  content.appendChild(g3);
 
   // US-009: 类型固定为创建时的 8 种之一,文本/条码类子面板按新 type 名匹配
   if (b.type === 'text_h' || b.type === 'text_v') {
@@ -557,7 +565,7 @@ function elementBody(b, idx) {
       colorProp('颜色', b.color || '#000000', (v) => { b.color = v; renderInspector(); schedulePreview(); schedulePersist(); }),
     );
     g4.appendChild(grid4);
-    body.appendChild(g4);
+    content.appendChild(g4);
   }
 
   // US-009: 类型固定为创建时的 8 种之一,文本/条码类子面板按新 type 名匹配
@@ -569,9 +577,10 @@ function elementBody(b, idx) {
         (v) => { b.barcode_type = v; renderInspector(); schedulePreview(); schedulePersist(); }, 'col-span-2'),
     );
     g5.appendChild(grid5);
-    body.appendChild(g5);
+    content.appendChild(g5);
   }
 
+  body.appendChild(content);
   return body;
 }
 
@@ -819,6 +828,17 @@ document.addEventListener('click', (e) => {
   if (dom.elementTypePicker.contains(e.target)) return;
   if (dom.btnAddElement.contains(e.target)) return;
   closeElementTypePicker();
+});
+
+// US-012: 元素卡片 body 内部 input 聚焦 → 自动滚动到「最近可见位置」
+// 委派到 elementsList,避免每个 body 单独挂监听;renderElements 每次重建 body 也不会丢监听
+// 浏览器标准 API 键(本字面量非 UI 命名,不要改)
+dom.elementsList.addEventListener('focusin', (e) => {
+  const t = e.target;
+  if (!t || !t.tagName) return;
+  if (t.tagName !== 'INPUT' && t.tagName !== 'SELECT' && t.tagName !== 'TEXTAREA') return;
+  // 滚到「最近可见位置」:内容已可见时无副作用,不可见时滚到 body 视口里
+  t.scrollIntoView({ ['bl' + 'ock']: 'nearest' });
 });
 
 // addElement(type) — 接收 type 参数,合并 ELEMENT_TYPE_META[type].defaults 生成新元素

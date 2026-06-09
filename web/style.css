@@ -496,6 +496,13 @@ input[type="checkbox"] {
   cursor: pointer;
   user-select: none;
   transition: background var(--d-fast) var(--ease);
+  /* US-012: 头部移入 body 内部后,sticky 到 body 顶端;
+     body 是 overflow-y: auto 的滚动容器,head 在 body 内滚到顶时停住 */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* 内容滚动时头部不透明,防止下方 prop 控件透出来 */
+  box-shadow: 0 1px 0 var(--c-border);
 }
 .element-card.open .element-card-head { border-bottom-color: var(--c-border); }
 .element-card-head:hover { background: var(--c-surface-3); }
@@ -559,10 +566,32 @@ input[type="checkbox"] {
 .type-rect    { background: var(--c-type-rect-bg);    color: var(--c-type-rect); }
 
 .element-card-body {
-  padding: 10px 12px 12px;
+  /* US-012: 编辑区滚动优化 —— body 自身成为独立滚动容器,
+     head 移入 body 内部作 sticky 锚点(见下 .element-card-head) */
+  max-height: 520px;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: none;
+  /* 滚动条预留,避免内容跳动(scrollbar-gutter 在 Firefox/Chrome 都支持) */
+  scrollbar-gutter: stable;
+  /* 让内部子元素的 sticky 计算有一个稳定的层叠上下文 */
+  isolation: isolate;
 }
 .element-card.open .element-card-body { display: block; }
+/* US-012: 编辑区滚动条样式 —— 窄而精致,与 panel-body 风格一致 */
+.element-card-body::-webkit-scrollbar { width: 6px; height: 6px; }
+.element-card-body::-webkit-scrollbar-track { background: transparent; }
+.element-card-body::-webkit-scrollbar-thumb {
+  background: var(--c-border-strong);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+.element-card-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: padding-box; }
+/* US-012: 内容包裹层 —— 实际 prop 区域,与 sticky 头部视觉分层 */
+.element-card-content {
+  padding: 10px 12px 12px;
+}
 
 .prop-group {
   margin-top: 10px;
